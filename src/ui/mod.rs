@@ -105,6 +105,18 @@ pub enum Message {
     UpdateTooltip,
     /// Metrics fetch completed with result (error as String for Clone compatibility)
     MetricsFetched(Result<crate::core::models::CopilotUsage, String>),
+    /// Open settings dialog
+    OpenSettings,
+    /// Close settings dialog
+    CloseSettings,
+    /// Update organization name field
+    UpdateOrgName(String),
+    /// Update Personal Access Token field
+    UpdatePat(String),
+    /// Update refresh interval field
+    UpdateRefreshInterval(u32),
+    /// Save configuration to disk and keyring
+    SaveConfig,
 }
 
 #[cfg(test)]

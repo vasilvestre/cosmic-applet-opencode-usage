@@ -51,6 +51,24 @@ impl CopilotMonitorApplet {
             Message::UpdateTooltip => {
                 // No state changes needed for tooltip update
             }
+            Message::OpenSettings => {
+                // TODO: Task 3.3 - Open settings dialog
+            }
+            Message::CloseSettings => {
+                // TODO: Task 3.3 - Close settings dialog
+            }
+            Message::UpdateOrgName(_name) => {
+                // TODO: Task 3.3 - Update temp org name field
+            }
+            Message::UpdatePat(_pat) => {
+                // TODO: Task 3.3 - Update temp PAT field
+            }
+            Message::UpdateRefreshInterval(_interval) => {
+                // TODO: Task 3.3 - Update temp refresh interval field
+            }
+            Message::SaveConfig => {
+                // TODO: Task 3.4 - Save configuration to disk and keyring
+            }
         }
     }
 
