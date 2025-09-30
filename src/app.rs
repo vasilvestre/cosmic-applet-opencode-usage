@@ -30,6 +30,32 @@ impl CopilotMonitorApplet {
             state: AppState::new(config),
         }
     }
+
+    /// Handle incoming messages and update application state accordingly.
+    pub fn handle_message(&mut self, message: crate::ui::Message) {
+        use crate::ui::Message;
+
+        match message {
+            Message::FetchMetrics => {
+                // Set state to Loading when fetch is triggered
+                self.state.panel_state = crate::ui::state::PanelState::Loading;
+            }
+            Message::MetricsFetched(Ok(usage)) => {
+                // Update state with successful data fetch
+                self.state.update_success(usage);
+            }
+            Message::MetricsFetched(Err(error)) => {
+                // Update state with error message
+                self.state.update_error(error);
+            }
+            Message::ThemeChanged => {
+                // No state changes needed for theme change
+            }
+            Message::UpdateTooltip => {
+                // No state changes needed for tooltip update
+            }
+        }
+    }
 }
 
 /// This is the struct that represents your application.
@@ -170,7 +196,9 @@ impl Application for YourApp {
 mod tests {
     use super::*;
     use crate::core::config::AppConfig;
+    use crate::core::models::{CopilotUsage, UsageBreakdown};
     use crate::ui::state::PanelState;
+    use crate::ui::Message;
 
     fn create_mock_config() -> AppConfig {
         AppConfig {
@@ -179,6 +207,29 @@ mod tests {
         }
     }
 
+    fn create_mock_copilot_usage() -> CopilotUsage {
+        CopilotUsage {
+            total_suggestions_count: 100,
+            total_acceptances_count: 50,
+            total_lines_suggested: 200,
+            total_lines_accepted: 75,
+            day: "2025-09-30".to_string(),
+            breakdown: vec![UsageBreakdown {
+                language: "rust".to_string(),
+                editor: "vscode".to_string(),
+                suggestions_count: 100,
+                acceptances_count: 50,
+                lines_suggested: 200,
+                lines_accepted: 75,
+            }],
+        }
+    }
+
+    fn create_test_applet() -> CopilotMonitorApplet {
+        CopilotMonitorApplet::new(create_mock_config())
+    }
+
+    // Task 8 tests
     #[test]
     fn test_applet_initialization() {
         let config = create_mock_config();
@@ -193,5 +244,34 @@ mod tests {
         // Verify fields exist (compilation test)
         let _ = applet.core;
         let _ = applet.state;
+    }
+
+    // Task 9 tests: Message Handling Logic
+    #[test]
+    fn test_handle_fetch_metrics_starts_loading() {
+        let mut applet = create_test_applet();
+        applet.handle_message(Message::FetchMetrics);
+        assert!(matches!(applet.state.panel_state, PanelState::Loading));
+    }
+
+    #[test]
+    fn test_handle_metrics_fetched_success() {
+        let mut applet = create_test_applet();
+        let usage = create_mock_copilot_usage();
+        
+        applet.handle_message(Message::MetricsFetched(Ok(usage.clone())));
+        
+        assert!(matches!(applet.state.panel_state, PanelState::Success(_)));
+        assert!(applet.state.last_update.is_some());
+    }
+
+    #[test]
+    fn test_handle_metrics_fetched_error() {
+        let mut applet = create_test_applet();
+        let error = "Network timeout".to_string();
+        
+        applet.handle_message(Message::MetricsFetched(Err(error)));
+        
+        assert!(matches!(applet.state.panel_state, PanelState::Error(_)));
     }
 }
