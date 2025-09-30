@@ -24,6 +24,7 @@ keyring = { version = "3.5", features = ["sync-secret-service"] }
 directories = "5.0"
 thiserror = "2.0"
 reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["time"] }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
@@ -36,6 +37,8 @@ features = ["fluent-system", "desktop-requester"]
 
 [dev-dependencies]
 serde_json = "1.0"
+mockito = "1.5"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 # Uncomment to test a locally-cloned libcosmic
 # [patch.'https://github.com/pop-os/libcosmic']
