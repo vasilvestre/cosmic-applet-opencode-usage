@@ -7,6 +7,42 @@ pub mod state;
 
 pub use state::PanelState;
 
+use formatters::{format_number, get_primary_metric};
+
+/// Generates the text displayed in the applet panel
+///
+/// Returns a formatted string based on the current state:
+/// - Loading: Shows a loading indicator emoji
+/// - Error: Shows an error indicator emoji  
+/// - Success/Stale: Shows the formatted primary metric (acceptances count)
+///
+/// # Arguments
+/// * `state` - The current panel state
+///
+/// # Returns
+/// A string suitable for display in the panel
+///
+/// # Examples
+/// ```
+/// use cosmic_applet_copilot_quota_tracker::ui::{view_panel_text, PanelState};
+/// use cosmic_applet_copilot_quota_tracker::core::models::CopilotUsage;
+///
+/// let loading = PanelState::Loading;
+/// assert_eq!(view_panel_text(&loading), "⏳");
+///
+/// let error = PanelState::Error("Network error".to_string());
+/// assert_eq!(view_panel_text(&error), "❌");
+/// ```
+pub fn view_panel_text(state: &PanelState) -> String {
+    match state {
+        PanelState::Loading => "⏳".to_string(),
+        PanelState::Error(_) => "❌".to_string(),
+        PanelState::Success(usage) | PanelState::Stale(usage) => {
+            format_number(get_primary_metric(usage))
+        }
+    }
+}
+
 /// Messages for UI event handling
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -67,5 +103,32 @@ mod tests {
         let msg = Message::MetricsFetched(Err(error));
         
         assert!(matches!(msg, Message::MetricsFetched(Err(_))));
+    }
+
+    // Tests for view_panel_text()
+    #[test]
+    fn test_view_panel_text_loading() {
+        let state = PanelState::Loading;
+        assert_eq!(view_panel_text(&state), "⏳");
+    }
+
+    #[test]
+    fn test_view_panel_text_error() {
+        let state = PanelState::Error("Network error".to_string());
+        assert_eq!(view_panel_text(&state), "❌");
+    }
+
+    #[test]
+    fn test_view_panel_text_success() {
+        let usage = create_mock_copilot_usage(); // Has 50 acceptances
+        let state = PanelState::Success(usage);
+        assert_eq!(view_panel_text(&state), "50"); // Should format the number
+    }
+
+    #[test]
+    fn test_view_panel_text_stale() {
+        let usage = create_mock_copilot_usage(); // Has 50 acceptances
+        let state = PanelState::Stale(usage);
+        assert_eq!(view_panel_text(&state), "50"); // Stale data still shows the number
     }
 }
