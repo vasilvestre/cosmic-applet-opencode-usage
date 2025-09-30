@@ -2,6 +2,7 @@
 
 //! Number and text formatting utilities for the UI
 
+use crate::core::models::CopilotUsage;
 use chrono::{DateTime, Utc};
 
 const THOUSAND: u64 = 1_000;
@@ -60,6 +61,36 @@ pub fn format_tooltip(last_update: Option<DateTime<Utc>>) -> String {
     }
 }
 
+/// Extracts the primary metric (total acceptances) from usage data
+///
+/// Returns the total number of Copilot suggestions that were accepted by the user.
+/// This is the main metric displayed in the applet panel.
+///
+/// # Arguments
+/// * `usage` - The Copilot usage data
+///
+/// # Returns
+/// The total number of accepted suggestions as a u64
+///
+/// # Examples
+/// ```
+/// use cosmic_applet_copilot_quota_tracker::core::models::CopilotUsage;
+/// use cosmic_applet_copilot_quota_tracker::ui::formatters::get_primary_metric;
+///
+/// let usage = CopilotUsage {
+///     total_suggestions_count: 100,
+///     total_acceptances_count: 50,
+///     total_lines_suggested: 500,
+///     total_lines_accepted: 250,
+///     day: "2025-09-30".to_string(),
+///     breakdown: vec![],
+/// };
+/// assert_eq!(get_primary_metric(&usage), 50);
+/// ```
+pub fn get_primary_metric(usage: &CopilotUsage) -> u64 {
+    usage.total_acceptances_count as u64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,5 +144,45 @@ mod tests {
         // Should start with "Last updated: " and have the right format
         assert!(result.starts_with("Last updated: "));
         assert!(result.contains(&now.format("%Y-%m-%d").to_string()));
+    }
+
+    // Tests for get_primary_metric()
+    #[test]
+    fn test_get_primary_metric_returns_acceptances() {
+        let usage = CopilotUsage {
+            total_suggestions_count: 100,
+            total_acceptances_count: 50,
+            total_lines_suggested: 500,
+            total_lines_accepted: 250,
+            day: "2025-09-30".to_string(),
+            breakdown: vec![],
+        };
+        assert_eq!(get_primary_metric(&usage), 50);
+    }
+
+    #[test]
+    fn test_get_primary_metric_with_zero() {
+        let usage = CopilotUsage {
+            total_suggestions_count: 0,
+            total_acceptances_count: 0,
+            total_lines_suggested: 0,
+            total_lines_accepted: 0,
+            day: "2025-09-30".to_string(),
+            breakdown: vec![],
+        };
+        assert_eq!(get_primary_metric(&usage), 0);
+    }
+
+    #[test]
+    fn test_get_primary_metric_large_number() {
+        let usage = CopilotUsage {
+            total_suggestions_count: 5_000_000,
+            total_acceptances_count: 1_234_567,
+            total_lines_suggested: 10_000_000,
+            total_lines_accepted: 5_000_000,
+            day: "2025-09-30".to_string(),
+            breakdown: vec![],
+        };
+        assert_eq!(get_primary_metric(&usage), 1_234_567);
     }
 }
