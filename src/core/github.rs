@@ -7,7 +7,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::time::Duration;
 
 /// Errors that can occur when creating or using a GitHubClient
 #[derive(Debug)]
