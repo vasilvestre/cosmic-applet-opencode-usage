@@ -3,3 +3,6 @@
 //! UI utilities for the COSMIC applet
 
 pub mod formatters;
+pub mod state;
+
+pub use state::PanelState;
