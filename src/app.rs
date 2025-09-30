@@ -7,7 +7,30 @@ use cosmic::iced_winit::commands::popup::{destroy_popup, get_popup};
 use cosmic::widget::{self, settings};
 use cosmic::{Application, Element};
 
+use crate::core::config::AppConfig;
 use crate::fl;
+use crate::ui::state::AppState;
+
+/// This is our Copilot quota tracker applet structure.
+/// This will replace YourApp once we implement the full Application trait (Task 13).
+pub struct CopilotMonitorApplet {
+    /// Application state which is managed by the COSMIC runtime.
+    core: Core,
+    /// Our application state containing UI and data state.
+    state: AppState,
+}
+
+impl CopilotMonitorApplet {
+    /// Create a new CopilotMonitorApplet instance.
+    /// This is a temporary constructor for testing - the actual initialization
+    /// will happen via the Application::init trait method in Task 13.
+    pub fn new(config: AppConfig) -> Self {
+        Self {
+            core: Core::default(),
+            state: AppState::new(config),
+        }
+    }
+}
 
 /// This is the struct that represents your application.
 /// It is used to define the data that will be used by your application.
@@ -82,7 +105,7 @@ impl Application for YourApp {
     /// it has a `Message` associated with it, which dictates what type of message it can send.
     ///
     /// To get a better sense of which widgets are available, check out the `widget` module.
-    fn view(&self) -> Element<Self::Message> {
+    fn view(&self) -> Element<'_, Self::Message> {
         self.core
             .applet
             .icon_button("display-symbolic")
@@ -90,7 +113,7 @@ impl Application for YourApp {
             .into()
     }
 
-    fn view_window(&self, _id: Id) -> Element<Self::Message> {
+    fn view_window(&self, _id: Id) -> Element<'_, Self::Message> {
         let content_list = widget::list_column()
             .padding(5)
             .spacing(0)
@@ -140,5 +163,35 @@ impl Application for YourApp {
 
     fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
         Some(cosmic::applet::style())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::config::AppConfig;
+    use crate::ui::state::PanelState;
+
+    fn create_mock_config() -> AppConfig {
+        AppConfig {
+            organization_name: "test-org".to_string(),
+            refresh_interval_seconds: 900,
+        }
+    }
+
+    #[test]
+    fn test_applet_initialization() {
+        let config = create_mock_config();
+        let applet = CopilotMonitorApplet::new(config);
+        assert!(matches!(applet.state.panel_state, PanelState::Loading));
+    }
+
+    #[test]
+    fn test_applet_has_required_fields() {
+        let config = create_mock_config();
+        let applet = CopilotMonitorApplet::new(config);
+        // Verify fields exist (compilation test)
+        let _ = applet.core;
+        let _ = applet.state;
     }
 }

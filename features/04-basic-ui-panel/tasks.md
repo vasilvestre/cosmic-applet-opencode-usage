@@ -417,11 +417,11 @@ fn test_applet_has_required_fields() {
 - Consider dependency injection for testing
 
 ### Acceptance Criteria
-- [ ] Basic test scenarios pass
-- [ ] Struct has core, state fields
-- [ ] Initializes to Loading state
-- [ ] Compiles without errors
-- [ ] Can be instantiated for testing
+- [x] Basic test scenarios pass
+- [x] Struct has core, state fields
+- [x] Initializes to Loading state
+- [x] Compiles without errors
+- [x] Can be instantiated for testing
 
 ---
 
