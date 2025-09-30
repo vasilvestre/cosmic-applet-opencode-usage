@@ -4,7 +4,7 @@ use cosmic::app::{Core, Task};
 use cosmic::widget;
 use cosmic::{Application, Element};
 
-use crate::core::config::AppConfig;
+use crate::core::config::{AppConfig, ConfigManager, KeyringManager, ConfigError};
 use crate::ui::state::AppState;
 use crate::ui::state::PanelState;
 
@@ -15,6 +15,15 @@ pub struct CopilotMonitorApplet {
     core: Core,
     /// Our application state containing UI and data state.
     state: AppState,
+    // Config management
+    config_manager: ConfigManager,
+    keyring_manager: KeyringManager,
+    // Settings UI state
+    settings_dialog_open: bool,
+    temp_org_name: String,
+    temp_pat: String,
+    temp_refresh_interval: u32,
+    config_error: Option<ConfigError>,
 }
 
 impl CopilotMonitorApplet {
@@ -22,9 +31,23 @@ impl CopilotMonitorApplet {
     /// This is a temporary constructor for testing - the actual initialization
     /// will happen via the Application::init trait method in Task 13.
     pub fn new(config: AppConfig) -> Self {
+        let config_manager = ConfigManager::new().expect("Failed to create config manager");
+        let keyring_manager = KeyringManager::new();
+        
+        // Load existing config or use defaults
+        let temp_org_name = config.organization_name.clone();
+        let temp_refresh_interval = config.refresh_interval_seconds;
+        
         Self {
             core: Core::default(),
             state: AppState::new(config),
+            config_manager,
+            keyring_manager,
+            settings_dialog_open: false,
+            temp_org_name,
+            temp_pat: String::new(), // Will be loaded from keyring when dialog opens
+            temp_refresh_interval,
+            config_error: None,
         }
     }
 
@@ -133,9 +156,23 @@ impl Application for CopilotMonitorApplet {
     /// Initialize the application with configuration.
     /// Returns the initial applet state and a command to fetch metrics immediately.
     fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
+        let config_manager = ConfigManager::new().expect("Failed to create config manager");
+        let keyring_manager = KeyringManager::new();
+        
+        // Load existing config or use defaults from flags
+        let temp_org_name = flags.organization_name.clone();
+        let temp_refresh_interval = flags.refresh_interval_seconds;
+        
         let applet = Self {
             core,
             state: AppState::new(flags),
+            config_manager,
+            keyring_manager,
+            settings_dialog_open: false,
+            temp_org_name,
+            temp_pat: String::new(), // Will be loaded from keyring when dialog opens
+            temp_refresh_interval,
+            config_error: None,
         };
 
         // Return initial fetch command - triggers immediate data load
