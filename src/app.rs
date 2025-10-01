@@ -302,7 +302,7 @@ impl OpenCodeMonitorApplet {
             }
         };
 
-        container(main_content).into()
+        scrollable(main_content).into()
     }
 
     /// Build the settings dialog UI
@@ -451,7 +451,7 @@ impl Application for OpenCodeMonitorApplet {
             let (max_w, max_h) = if self.settings_dialog_open {
                 (600.0, 600.0)
             } else {
-                (500.0, 400.0)
+                (600.0, 500.0)
             };
             
             self.core
