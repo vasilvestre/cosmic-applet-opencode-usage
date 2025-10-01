@@ -410,13 +410,10 @@ impl Application for OpenCodeMonitorApplet {
         if self.state.config.show_today_usage {
             if let Some(today_usage) = &self.state.today_usage {
                 let display_text = format_panel_display(today_usage);
-                // Use button::custom with applet.text() for proper panel scaling
-                return button::custom(
-                    self.core.applet.text(display_text)
-                )
-                .on_press_down(Message::TogglePopup)
-                .class(cosmic::theme::Button::AppletIcon)
-                .into();
+                // Use standard text button for better visibility in panel
+                return button::text(display_text)
+                    .on_press(Message::TogglePopup)
+                    .into();
             }
         }
         
