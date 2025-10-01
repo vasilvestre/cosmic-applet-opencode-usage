@@ -121,6 +121,39 @@
   - Viewer: `target/release/cosmic-applet-opencode-usage-viewer` (22 MB)
   - Both build in release mode without warnings
 
+### 8. Applet Integration (One-Click Access)
+
+✅ **Message Handling (src/ui/messages.rs)**
+  - Added `OpenViewer` message variant to `Message` enum
+  - Enables button click events to trigger viewer launch
+
+✅ **UI Button (src/app.rs)**
+  - Added "View Stats" button to all popup states:
+    - `PanelState::Loading` - Button shown with Settings
+    - `PanelState::Error` - Button shown with Settings and Retry
+    - `PanelState::Success/Stale/LoadingWithData` - Button shown with Settings
+  - Buttons arranged horizontally with 8px spacing using `row()` widget
+  - Consistent placement across all states for predictable UX
+
+✅ **Process Spawning Logic (src/app.rs)**
+  - `Message::OpenViewer` handler spawns viewer as separate process
+  - Two-tier fallback strategy:
+    1. **Primary**: `cosmic-applet-opencode-usage-viewer` (searches system PATH)
+    2. **Fallback**: `./target/release/cosmic-applet-opencode-usage-viewer` (local build)
+  - Fire-and-forget pattern (viewer runs independently)
+  - Error handling with console logging (no UI feedback yet)
+  - Returns `Task::none()` to maintain applet responsiveness
+
+✅ **Code Quality**
+  - Added `#[allow(clippy::too_many_lines)]` to `metrics_popup_view()` (acceptable for UI function)
+  - All clippy warnings resolved (pedantic mode)
+  - Formatted with `cargo +nightly fmt --all`
+
+✅ **Documentation (README.md)**
+  - Added "Historical Data Viewer" feature description
+  - Added "One-Click Access" feature description
+  - Updated feature list for user visibility
+
 ## Test Results
 
 ```
@@ -185,6 +218,15 @@ This verifies that:
 - ✅ Can run concurrently with applet
 - ✅ Shared database with applet (no conflicts)
 - ✅ COSMIC-native window management
+- ✅ One-click launch from applet popup
+
+### Applet Integration
+- ✅ "View Stats" button in all popup states (Loading, Error, Success)
+- ✅ Process spawning with fallback strategy:
+  1. Primary: `cosmic-applet-opencode-usage-viewer` (system PATH)
+  2. Fallback: `./target/release/cosmic-applet-opencode-usage-viewer` (local build)
+- ✅ Error handling with console logging
+- ✅ Fire-and-forget pattern (viewer runs independently)
 
 ### Architecture
 - ✅ Clean separation from applet code
@@ -194,7 +236,7 @@ This verifies that:
 
 ## Files Created/Modified
 
-### New Files (6)
+### New Files (9)
 1. `features/viewer-app/requirements.md`
 2. `features/viewer-app/design.md`
 3. `features/viewer-app/tasks.md`
@@ -205,13 +247,25 @@ This verifies that:
 8. `tests/viewer_integration.rs`
 9. `features/viewer-app/IMPLEMENTATION_SUMMARY.md` (this file)
 
-### Modified Files (2)
+### Modified Files (5)
 1. `Cargo.toml` - Added viewer binary target
 2. `src/lib.rs` - Exported viewer module
+3. `src/ui/messages.rs` - Added `OpenViewer` message variant
+4. `src/app.rs` - Added "View Stats" button and viewer launch logic
+5. `README.md` - Documented viewer access features
 
 ## Usage
 
-### Running the Viewer
+### Opening the Viewer from the Applet (Recommended)
+The easiest way to access the viewer is through the applet itself:
+
+1. Click the applet icon in the COSMIC panel to open the popup
+2. Click the **"View Stats"** button at the bottom of the popup
+3. The viewer window will open in a new process
+
+This method works whether the viewer is installed system-wide or built locally.
+
+### Running the Viewer Manually
 ```bash
 # Development mode
 cargo run --bin cosmic-applet-opencode-usage-viewer
@@ -220,7 +274,7 @@ cargo run --bin cosmic-applet-opencode-usage-viewer
 cargo run --release --bin cosmic-applet-opencode-usage-viewer
 
 # Installed binary
-~/.cargo/bin/cosmic-applet-opencode-usage-viewer
+cosmic-applet-opencode-usage-viewer
 ```
 
 ### Running Both Concurrently
@@ -245,12 +299,15 @@ Both can access the database simultaneously thanks to SQLite WAL mode.
 - ✅ Runs alongside main applet without conflicts
 - ✅ All tests pass
 - ✅ Test chart displays with sample data (text-based bars)
+- ✅ **One-click launch from applet popup "View Stats" button**
+- ✅ **Process spawning with fallback for both installed and local builds**
 
 ### What's Placeholder/Future Work
 - ⚠️ Chart uses sample data (not real database data yet)
 - ⚠️ No filtering or date range selection
 - ⚠️ Text-based bars (COSMIC colored container styling requires more research)
 - ⚠️ No interactive features (tooltips, zoom, etc.)
+- ⚠️ No UI error feedback if viewer fails to launch (console logging only)
 
 ### Integration with Existing Code
 - ✅ No regression in applet functionality
@@ -261,7 +318,7 @@ Both can access the database simultaneously thanks to SQLite WAL mode.
 
 ## Next Steps (Future Features)
 
-The viewer scaffolding is **complete and ready for UI implementation**. Future enhancements will include:
+The viewer scaffolding is **complete and ready for UI implementation**. The viewer can now be easily accessed from the applet popup. Future enhancements will include:
 
 1. **Data Visualization Feature** (separate feature)
    - Display historical usage data from repository
@@ -276,6 +333,7 @@ The viewer scaffolding is **complete and ready for UI implementation**. Future e
    - Dark/light theme support
    - Export functionality (CSV, JSON)
    - Print/share capabilities
+   - Error feedback for viewer launch failures
 
 3. **Performance Feature** (future)
    - Data pagination for large datasets
@@ -320,11 +378,12 @@ The viewer scaffolding is **complete and ready for UI implementation**. Future e
 
 ## Architecture Decisions
 
-### Why Standalone Binary?
+### Why Standalone Binary with One-Click Access?
 - **Separation of Concerns**: Viewer is distinct from real-time monitoring
 - **Performance**: Can be launched on-demand, not always running
 - **Flexibility**: Independent release cycle from applet
-- **User Experience**: Can be opened/closed without affecting applet
+- **User Experience**: Easy access via button, can be opened/closed without affecting applet
+- **Process Independence**: Viewer runs in separate process, can survive applet crashes
 
 ### Why Share Database?
 - **Single Source of Truth**: No data synchronization needed
