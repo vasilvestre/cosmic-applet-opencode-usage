@@ -23,6 +23,8 @@ pub enum Message {
     UpdateRefreshInterval(u32),
     /// Toggle show_today_usage setting
     ToggleShowTodayUsage(bool),
+    /// Toggle raw token display setting
+    ToggleRawTokenDisplay(bool),
     /// Save configuration
     SaveConfig,
     /// Toggle popup visibility

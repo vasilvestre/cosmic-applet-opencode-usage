@@ -165,6 +165,7 @@ mod tests {
             storage_path: None, // Use default OpenCode storage path
             refresh_interval_seconds: 900,
             show_today_usage: false,
+            use_raw_token_display: false,
         }
     }
 
@@ -270,6 +271,7 @@ mod tests {
             storage_path: None,
             refresh_interval_seconds: 0, // Invalid: below minimum of 1
             show_today_usage: false,
+            use_raw_token_display: false,
         };
         let state = AppState::new(invalid_config);
         

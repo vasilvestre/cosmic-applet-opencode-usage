@@ -60,6 +60,11 @@ pub fn format_tokens_compact(tokens: u64) -> String {
     }
 }
 
+/// Format tokens as raw numbers without K/M suffixes (e.g., "1000", "25000000")
+pub fn format_tokens_raw(tokens: u64) -> String {
+    tokens.to_string()
+}
+
 /// Format panel display ultra-compact for narrow panels (e.g., "15k/$1.2")
 pub fn format_panel_display(usage: &UsageMetrics) -> String {
     let cost = format_cost_compact(usage.total_cost);
@@ -75,6 +80,16 @@ pub fn format_panel_display_detailed(usage: &UsageMetrics) -> String {
     let interactions = usage.interaction_count;
     let input_tokens = format_tokens_compact(usage.total_input_tokens);
     let output_tokens = format_tokens_compact(usage.total_output_tokens);
+    format!("{} | {}x | {}/{}", cost, interactions, input_tokens, output_tokens)
+}
+
+/// Format comprehensive panel display with raw token values (e.g., "$1.2 | 3x | 10000/5000")
+/// Format: Cost | Interactions | InputTokens/OutputTokens (no K/M suffixes)
+pub fn format_panel_display_detailed_raw(usage: &UsageMetrics) -> String {
+    let cost = format_cost_compact(usage.total_cost);
+    let interactions = usage.interaction_count;
+    let input_tokens = format_tokens_raw(usage.total_input_tokens);
+    let output_tokens = format_tokens_raw(usage.total_output_tokens);
     format!("{} | {}x | {}/{}", cost, interactions, input_tokens, output_tokens)
 }
 
@@ -267,5 +282,54 @@ mod tests {
             timestamp: std::time::SystemTime::now(),
         };
         assert_eq!(format_panel_display_detailed(&usage), "$126 | 1234x | 25M/10M");
+    }
+
+    #[test]
+    fn test_format_tokens_raw_small() {
+        assert_eq!(format_tokens_raw(100), "100");
+        assert_eq!(format_tokens_raw(999), "999");
+    }
+
+    #[test]
+    fn test_format_tokens_raw_thousands() {
+        assert_eq!(format_tokens_raw(1_000), "1000");
+        assert_eq!(format_tokens_raw(10_500), "10500");
+        assert_eq!(format_tokens_raw(999_999), "999999");
+    }
+
+    #[test]
+    fn test_format_tokens_raw_millions() {
+        assert_eq!(format_tokens_raw(1_000_000), "1000000");
+        assert_eq!(format_tokens_raw(25_000_000), "25000000");
+    }
+
+    #[test]
+    fn test_format_panel_display_detailed_raw_small() {
+        let usage = UsageMetrics {
+            total_input_tokens: 100,
+            total_output_tokens: 50,
+            total_reasoning_tokens: 0,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 0.05,
+            interaction_count: 1,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_display_detailed_raw(&usage), "$0.05 | 1x | 100/50");
+    }
+
+    #[test]
+    fn test_format_panel_display_detailed_raw_large() {
+        let usage = UsageMetrics {
+            total_input_tokens: 25_000_000,
+            total_output_tokens: 10_000_000,
+            total_reasoning_tokens: 0,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 125.50,
+            interaction_count: 1234,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_display_detailed_raw(&usage), "$126 | 1234x | 25000000/10000000");
     }
 }

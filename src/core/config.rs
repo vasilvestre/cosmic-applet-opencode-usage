@@ -29,6 +29,8 @@ pub struct AppConfig {
     pub refresh_interval_seconds: u32,
     /// Show today's usage next to the icon in the panel (default: true)
     pub show_today_usage: bool,
+    /// Use raw token values instead of formatted (K/M) suffixes (default: false)
+    pub use_raw_token_display: bool,
 }
 
 impl Default for AppConfig {
@@ -37,6 +39,7 @@ impl Default for AppConfig {
             storage_path: None, // Will use default path from OpenCodeUsageReader
             refresh_interval_seconds: 900,
             show_today_usage: true,
+            use_raw_token_display: false,
         }
     }
 }
@@ -78,6 +81,7 @@ mod tests {
         assert_eq!(config.storage_path, None);
         assert_eq!(config.refresh_interval_seconds, 900);
         assert_eq!(config.show_today_usage, true);
+        assert_eq!(config.use_raw_token_display, false);
     }
 
     #[test]
@@ -92,6 +96,7 @@ mod tests {
             storage_path: None,
             refresh_interval_seconds: 0, // Too low (zero)
             show_today_usage: false,
+            use_raw_token_display: false,
         };
         assert_eq!(
             config.validate(),
@@ -105,6 +110,7 @@ mod tests {
             storage_path: None,
             refresh_interval_seconds: 5000, // Too high
             show_today_usage: false,
+            use_raw_token_display: false,
         };
         assert_eq!(
             config.validate(),
@@ -119,6 +125,7 @@ mod tests {
             storage_path: None,
             refresh_interval_seconds: 1,
             show_today_usage: false,
+            use_raw_token_display: false,
         };
         assert_eq!(
             config_min.validate(),
@@ -130,6 +137,7 @@ mod tests {
             storage_path: None,
             refresh_interval_seconds: 59,
             show_today_usage: false,
+            use_raw_token_display: false,
         };
         assert_eq!(
             config_warning.validate(),
@@ -141,6 +149,7 @@ mod tests {
             storage_path: None,
             refresh_interval_seconds: 60,
             show_today_usage: false,
+            use_raw_token_display: false,
         };
         assert_eq!(config_no_warning.validate(), Ok(None));
 
@@ -149,6 +158,7 @@ mod tests {
             storage_path: None,
             refresh_interval_seconds: 3600,
             show_today_usage: false,
+            use_raw_token_display: false,
         };
         assert_eq!(config_max.validate(), Ok(None));
     }

@@ -31,6 +31,7 @@ pub struct OpenCodeMonitorApplet {
     temp_refresh_interval: u32,
     temp_refresh_interval_str: String,
     temp_show_today_usage: bool,
+    temp_use_raw_token_display: bool,
     config_error: Option<ConfigError>,
     config_warning: Option<ConfigWarning>,
     /// Popup window tracking
@@ -48,6 +49,7 @@ impl OpenCodeMonitorApplet {
         
         let temp_refresh_interval = config.refresh_interval_seconds;
         let temp_show_today_usage = config.show_today_usage;
+        let temp_use_raw_token_display = config.use_raw_token_display;
         
         Ok(Self {
             core: Core::default(),
@@ -57,6 +59,7 @@ impl OpenCodeMonitorApplet {
             temp_refresh_interval,
             temp_refresh_interval_str: temp_refresh_interval.to_string(),
             temp_show_today_usage,
+            temp_use_raw_token_display,
             config_error: None,
             config_warning: None,
             popup: None,
@@ -127,6 +130,7 @@ impl OpenCodeMonitorApplet {
                 self.temp_refresh_interval = self.state.config.refresh_interval_seconds;
                 self.temp_refresh_interval_str = self.temp_refresh_interval.to_string();
                 self.temp_show_today_usage = self.state.config.show_today_usage;
+                self.temp_use_raw_token_display = self.state.config.use_raw_token_display;
                 self.config_error = None;
                 self.config_warning = None;
                 Task::none()
@@ -144,6 +148,10 @@ impl OpenCodeMonitorApplet {
             }
             Message::ToggleShowTodayUsage(enabled) => {
                 self.temp_show_today_usage = enabled;
+                Task::none()
+            }
+            Message::ToggleRawTokenDisplay(enabled) => {
+                self.temp_use_raw_token_display = enabled;
                 Task::none()
             }
             Message::ToggleDisplayMode => {
@@ -172,6 +180,7 @@ impl OpenCodeMonitorApplet {
                 // Update config in state (no persistence for now - will be added later)
                 self.state.config.refresh_interval_seconds = self.temp_refresh_interval;
                 self.state.config.show_today_usage = self.temp_show_today_usage;
+                self.state.config.use_raw_token_display = self.temp_use_raw_token_display;
                 
                 // Clear today's usage cache if the setting was disabled
                 if !self.temp_show_today_usage {
@@ -328,6 +337,13 @@ impl OpenCodeMonitorApplet {
                 )
                 .on_toggle(Message::ToggleShowTodayUsage)
             )
+            .push(
+                checkbox(
+                    "Use raw token values (no K/M suffixes)",
+                    self.temp_use_raw_token_display
+                )
+                .on_toggle(Message::ToggleRawTokenDisplay)
+            )
             .spacing(10)
             .padding(20);
         
@@ -365,12 +381,16 @@ impl OpenCodeMonitorApplet {
 
     /// Create the panel button content layout
     fn panel_button_content(&self) -> Element<'_, Message> {
-        use crate::ui::formatters::format_panel_display_detailed;
+        use crate::ui::formatters::{format_panel_display_detailed, format_panel_display_detailed_raw};
         
         // If show_today_usage is enabled and we have today's data, show icon + detailed metrics
         if self.state.config.show_today_usage {
             if let Some(today_usage) = &self.state.today_usage {
-                let display_text = format_panel_display_detailed(today_usage);
+                let display_text = if self.state.config.use_raw_token_display {
+                    format_panel_display_detailed_raw(today_usage)
+                } else {
+                    format_panel_display_detailed(today_usage)
+                };
                 // Show icon + text in a row
                 return row()
                     .push(icon::from_name(self.get_state_icon()).size(16))
@@ -412,6 +432,7 @@ impl Application for OpenCodeMonitorApplet {
         
         let temp_refresh_interval = flags.refresh_interval_seconds;
         let temp_show_today_usage = flags.show_today_usage;
+        let temp_use_raw_token_display = flags.use_raw_token_display;
         
         let applet = Self {
             core,
@@ -421,6 +442,7 @@ impl Application for OpenCodeMonitorApplet {
             temp_refresh_interval,
             temp_refresh_interval_str: temp_refresh_interval.to_string(),
             temp_show_today_usage,
+            temp_use_raw_token_display,
             config_error: None,
             config_warning: None,
             popup: None,
@@ -494,6 +516,7 @@ mod tests {
             storage_path: None,
             refresh_interval_seconds: 900,
             show_today_usage: false,
+            use_raw_token_display: false,
         }
     }
 
