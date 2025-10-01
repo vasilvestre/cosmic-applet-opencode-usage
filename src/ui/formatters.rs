@@ -60,12 +60,12 @@ pub fn format_tokens_compact(tokens: u64) -> String {
     }
 }
 
-/// Format panel display ultra-compact for narrow panels (e.g., "$1.2/15k")
+/// Format panel display ultra-compact for narrow panels (e.g., "15k/$1.2")
 pub fn format_panel_display(usage: &UsageMetrics) -> String {
     let cost = format_cost_compact(usage.total_cost);
     let total_tokens = usage.total_input_tokens + usage.total_output_tokens;
     let tokens = format_tokens_compact(total_tokens);
-    format!("{}/{}", cost, tokens)
+    format!("{}/{}", tokens, cost)
 }
 
 /// Get the primary metric to display (total cost)
@@ -181,7 +181,7 @@ mod tests {
             interaction_count: 1,
             timestamp: std::time::SystemTime::now(),
         };
-        assert_eq!(format_panel_display(&usage), "$0.05/150");
+        assert_eq!(format_panel_display(&usage), "150/$0.05");
     }
 
     #[test]
@@ -196,7 +196,7 @@ mod tests {
             interaction_count: 5,
             timestamp: std::time::SystemTime::now(),
         };
-        assert_eq!(format_panel_display(&usage), "$1.2/15k");
+        assert_eq!(format_panel_display(&usage), "15k/$1.2");
     }
 
     #[test]
@@ -211,6 +211,6 @@ mod tests {
             interaction_count: 25,
             timestamp: std::time::SystemTime::now(),
         };
-        assert_eq!(format_panel_display(&usage), "$12/750k");
+        assert_eq!(format_panel_display(&usage), "750k/$12");
     }
 }
