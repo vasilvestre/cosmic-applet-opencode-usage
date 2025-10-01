@@ -15,6 +15,10 @@ path = "src/lib.rs"
 name = "cosmic-applet-opencode-usage"
 path = "src/main.rs"
 
+[[bin]]
+name = "cosmic-applet-opencode-usage-viewer"
+path = "src/viewer/main.rs"
+
 [dependencies]
 i18n-embed-fl = "0.10.0"
 rust-embed = "8.3.0"
@@ -26,6 +30,7 @@ walkdir = "2.4"
 rayon = "1.10"
 num-format = { version = "0.4", features = ["with-system-locale"] }
 tokio = { version = "1", features = ["time", "sync", "macros"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
