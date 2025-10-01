@@ -6,11 +6,19 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
 
+/// Application identifier for COSMIC config system
+pub const APP_ID: &str = "com.vasilvestre.CosmicAppletOpencodeUsage";
+pub const CONFIG_VERSION: u64 = 1;
+
 /// Configuration error types
 #[derive(Debug, Error, PartialEq, Clone)]
 pub enum ConfigError {
     #[error("Refresh interval must be between 1 and 3600 seconds (got {0})")]
     InvalidRefreshInterval(u32),
+    #[error("Failed to load config: {0}")]
+    LoadError(String),
+    #[error("Failed to save config: {0}")]
+    SaveError(String),
 }
 
 /// Configuration warning types (non-blocking)
@@ -48,6 +56,59 @@ impl AppConfig {
     /// Creates a new config with default values
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Loads configuration from COSMIC config system
+    /// Falls back to defaults if config doesn't exist or can't be loaded
+    pub fn load() -> Result<Self, ConfigError> {
+        Self::load_with_id(APP_ID)
+    }
+
+    /// Loads configuration with a custom app ID (useful for testing)
+    fn load_with_id(app_id: &str) -> Result<Self, ConfigError> {
+        use cosmic::cosmic_config::{Config, ConfigGet};
+        
+        // Try to open config, if it fails, return defaults
+        let config = Config::new(app_id, CONFIG_VERSION)
+            .map_err(|e| ConfigError::LoadError(format!("Failed to open config: {}", e)))?;
+        
+        // Load each field individually, using defaults for missing values
+        let default = Self::default();
+        
+        Ok(Self {
+            storage_path: config.get("storage_path").unwrap_or(default.storage_path),
+            refresh_interval_seconds: config.get("refresh_interval_seconds")
+                .unwrap_or(default.refresh_interval_seconds),
+            show_today_usage: config.get("show_today_usage")
+                .unwrap_or(default.show_today_usage),
+            use_raw_token_display: config.get("use_raw_token_display")
+                .unwrap_or(default.use_raw_token_display),
+        })
+    }
+
+    /// Saves configuration to COSMIC config system
+    pub fn save(&self) -> Result<(), ConfigError> {
+        Self::save_with_id(self, APP_ID)
+    }
+
+    /// Saves configuration with a custom app ID (useful for testing)
+    fn save_with_id(&self, app_id: &str) -> Result<(), ConfigError> {
+        use cosmic::cosmic_config::{Config, ConfigSet};
+        
+        let config = Config::new(app_id, CONFIG_VERSION)
+            .map_err(|e| ConfigError::SaveError(format!("Failed to open config: {}", e)))?;
+        
+        // Save each field individually
+        config.set("storage_path", &self.storage_path)
+            .map_err(|e| ConfigError::SaveError(format!("Failed to save storage_path: {}", e)))?;
+        config.set("refresh_interval_seconds", self.refresh_interval_seconds)
+            .map_err(|e| ConfigError::SaveError(format!("Failed to save refresh_interval_seconds: {}", e)))?;
+        config.set("show_today_usage", self.show_today_usage)
+            .map_err(|e| ConfigError::SaveError(format!("Failed to save show_today_usage: {}", e)))?;
+        config.set("use_raw_token_display", self.use_raw_token_display)
+            .map_err(|e| ConfigError::SaveError(format!("Failed to save use_raw_token_display: {}", e)))?;
+        
+        Ok(())
     }
 
     /// Validates the configuration, returning any warnings
@@ -194,5 +255,98 @@ mod tests {
             validate_refresh_interval(5000),
             Err(ConfigError::InvalidRefreshInterval(5000))
         );
+    }
+
+    // ===== PERSISTENCE TESTS (TDD - RED PHASE) =====
+
+    // Helper to create test-specific app IDs to avoid test interference
+    fn test_app_id(test_name: &str) -> String {
+        format!("com.test.CosmicAppletOpencodeUsage.{}", test_name)
+    }
+
+    #[test]
+    fn test_save_config_creates_persistent_storage() {
+        let app_id = test_app_id("save_creates");
+        
+        // Create a non-default config
+        let config = AppConfig {
+            storage_path: Some(PathBuf::from("/custom/path")),
+            refresh_interval_seconds: 300,
+            show_today_usage: false,
+            use_raw_token_display: true,
+        };
+
+        // Save should succeed
+        let result = config.save_with_id(&app_id);
+        assert!(result.is_ok(), "save() should succeed");
+    }
+
+    #[test]
+    fn test_load_config_returns_defaults_when_no_config_exists() {
+        let app_id = test_app_id("load_no_config");
+        
+        // Load from a fresh config (nothing saved yet)
+        let loaded = AppConfig::load_with_id(&app_id);
+        
+        // Should return default config, not an error
+        assert!(loaded.is_ok(), "load() should succeed even with no saved config");
+        let config = loaded.unwrap();
+        assert_eq!(config, AppConfig::default());
+    }
+
+    #[test]
+    fn test_save_then_load_roundtrip() {
+        let app_id = test_app_id("roundtrip");
+        
+        // Create a custom config
+        let original = AppConfig {
+            storage_path: Some(PathBuf::from("/test/custom/path")),
+            refresh_interval_seconds: 120,
+            show_today_usage: false,
+            use_raw_token_display: true,
+        };
+
+        // Save it
+        original.save_with_id(&app_id).expect("save should succeed");
+
+        // Load it back
+        let loaded = AppConfig::load_with_id(&app_id).expect("load should succeed");
+
+        // Should match the original
+        assert_eq!(loaded, original);
+    }
+
+    #[test]
+    fn test_save_persists_individual_fields() {
+        let app_id = test_app_id("individual_fields");
+        
+        // Save a config with specific values
+        let config1 = AppConfig {
+            storage_path: None,
+            refresh_interval_seconds: 600,
+            show_today_usage: true,
+            use_raw_token_display: false,
+        };
+        config1.save_with_id(&app_id).expect("save should succeed");
+
+        // Load and verify
+        let loaded1 = AppConfig::load_with_id(&app_id).expect("load should succeed");
+        assert_eq!(loaded1.refresh_interval_seconds, 600);
+        assert_eq!(loaded1.show_today_usage, true);
+
+        // Change one field and save again
+        let config2 = AppConfig {
+            storage_path: None,
+            refresh_interval_seconds: 1800,
+            show_today_usage: false,
+            use_raw_token_display: true,
+        };
+        config2.save_with_id(&app_id).expect("save should succeed");
+
+        // Load and verify the change
+        let loaded2 = AppConfig::load_with_id(&app_id).expect("load should succeed");
+        assert_eq!(loaded2.refresh_interval_seconds, 1800);
+        assert_eq!(loaded2.show_today_usage, false);
+        assert_eq!(loaded2.use_raw_token_display, true);
     }
 }

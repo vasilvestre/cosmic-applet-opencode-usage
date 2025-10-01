@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.system76.CosmicAppletOpencodeUsage</id>
+  <id>com.vasilvestre.CosmicAppletOpencodeUsage</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-only</project_license>
   <project_group>COSMIC</project_group>
@@ -8,13 +8,13 @@
   <update_contact>vincent@silvestre.email</update_contact>
   <url type="homepage"></url>
   <url type="bugtracker"></url>
-  <name>COSMIC Opencode Usage Tracker</name>
-  <summary>Track your Opencode AI usage quota</summary>
+  <name>COSMIC OpenCode Usage Tracker</name>
+  <summary>Track your OpenCode AI usage quota</summary>
   <description>
-    <p>A COSMIC applet that displays your Opencode AI usage and quota information in the panel</p>
+    <p>A COSMIC applet that displays your OpenCode AI usage and quota information in the panel</p>
   </description>
-  <launchable type="desktop-id">com.system76.CosmicAppletOpencodeUsage.desktop</launchable>
-  <icon type="remote" height="256" width="256">https://raw.githubusercontent.com/vsilvestre/cosmic-applet-opencode-usage/master/res/icons/hicolor/256x256/apps/com.system76.CosmicAppletOpencodeUsage.svg</icon>
+  <launchable type="desktop-id">com.vasilvestre.CosmicAppletOpencodeUsage.desktop</launchable>
+  <icon type="remote" height="256" width="256">https://raw.githubusercontent.com/vsilvestre/cosmic-applet-opencode-usage/master/res/icons/hicolor/256x256/apps/com.vasilvestre.CosmicAppletOpencodeUsage.svg</icon>
   <screenshots>
   </screenshots>
   <provides>

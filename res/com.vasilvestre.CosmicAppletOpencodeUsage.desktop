@@ -1,12 +1,12 @@
 [Desktop Entry]
-Name=COSMIC Applet Opencode Usage
+Name=COSMIC Applet OpenCode Usage
 Exec=cosmic-applet-opencode-usage %F
 Terminal=false
 Type=Application
 StartupNotify=true
-Icon=com.system76.CosmicAppletOpencodeUsage
+Icon=com.vasilvestre.CosmicAppletOpencodeUsage
 Categories=COSMIC;Utility;
-Keywords=Opencode;Usage;Quota;Tracker;
+Keywords=OpenCode;Usage;Quota;Tracker;
 MimeType=inode/directory;
 NoDisplay=true
 X-CosmicApplet=true
