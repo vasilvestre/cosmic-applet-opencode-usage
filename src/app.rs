@@ -177,10 +177,16 @@ impl OpenCodeMonitorApplet {
                     }
                 }
 
-                // Update config in state (no persistence for now - will be added later)
+                // Update config in state
                 self.state.config.refresh_interval_seconds = self.temp_refresh_interval;
                 self.state.config.show_today_usage = self.temp_show_today_usage;
                 self.state.config.use_raw_token_display = self.temp_use_raw_token_display;
+                
+                // Persist config to disk
+                if let Err(err) = self.state.config.save() {
+                    eprintln!("Warning: Failed to save config: {}", err);
+                    // Don't block the UI if save fails - just log it
+                }
                 
                 // Clear today's usage cache if the setting was disabled
                 if !self.temp_show_today_usage {
@@ -413,7 +419,7 @@ impl Application for OpenCodeMonitorApplet {
     type Executor = cosmic::executor::Default;
     type Flags = AppConfig;
     type Message = Message;
-    const APP_ID: &'static str = "com.system76.CosmicAppletOpenCodeMonitor";
+    const APP_ID: &'static str = "com.vasilvestre.CosmicAppletOpencodeUsage";
 
     fn core(&self) -> &Core {
         &self.core
