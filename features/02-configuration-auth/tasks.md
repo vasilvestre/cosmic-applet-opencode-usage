@@ -1406,11 +1406,11 @@ fn view_window(&self, _id: Id) -> Element<Self::Message> {
 **Implementation**: (See design.md for detailed update() implementation)
 
 **Acceptance Criteria**:
-- [ ] Settings open with current values
-- [ ] Input changes update temp state
-- [ ] Save validates and persists config
-- [ ] Errors displayed on validation failure
-- [ ] Dialog closes on save or cancel
+- [x] Settings open with current values
+- [x] Input changes update temp state
+- [x] Save validates and persists config
+- [x] Errors displayed on validation failure
+- [x] Dialog closes on save or cancel
 
 **Commit**: "Implement settings message handlers with validation"
 
@@ -1464,10 +1464,10 @@ fn view_window(&self, _id: Id) -> Element<Self::Message> {
 5. Run `cargo fmt` for formatting
 
 **Acceptance Criteria**:
-- [ ] All unit tests pass
-- [ ] All integration tests pass
-- [ ] No clippy warnings
-- [ ] Code properly formatted
+- [x] All unit tests pass (180 tests passing)
+- [x] All integration tests pass (included in test suite)
+- [ ] No clippy warnings (clippy not installed in environment)
+- [ ] Code properly formatted (rustfmt not installed in environment)
 
 **Commit**: "Feature 02 complete: Configuration & Authentication"
 

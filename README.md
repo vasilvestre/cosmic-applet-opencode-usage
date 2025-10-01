@@ -1,30 +1,54 @@
-# COSMIC Applet Template
+# COSMIC OpenCode Usage Tracker
 
-A template for COSMIC applets.
+A COSMIC Desktop applet for tracking OpenCode/Claude Code usage metrics and token consumption.
 
-## Getting Started
+## Features
 
-To get started, click the "Use this template" button above. This will create a new repository in your account with the contents of this template.
+- **Real-time Token Tracking**: Monitor your OpenCode token usage from local storage files
+- **Aggregated Metrics**: View total input, output, reasoning, and cache tokens
+- **Cost Tracking**: Track estimated costs based on token usage
+- **System Panel Integration**: Quick access from the COSMIC panel
+- **Lightweight**: Minimal resource usage with efficient caching
 
-Once you have created a new repository from this template, you can clone it to your local machine and start developing your COSMIC applet.
+## What is OpenCode?
 
-## Development
+[OpenCode](https://github.com/sst/opencode) (formerly Claude Code) is an AI-powered coding assistant. This applet reads usage data from your local OpenCode installation to help you track token consumption and costs.
 
-When you open the repository in your code editor, you will see a lot of comments in the code. These comments are there to help you get a basic understanding of what each part of the code does.
+## Requirements
 
-Once you feel comfortable with it, refer back to the [COSMIC documentation](https://pop-os.github.io/libcosmic/cosmic/) for more information on how to build COSMIC applets.
+- COSMIC Desktop Environment
+- OpenCode installed with usage data in `~/.local/share/opencode/storage/part/`
+- Rust toolchain (for building)
 
 ## Install
 
-To install your COSMIC applet, you will need [just](https://github.com/casey/just), if you're on Pop!\_OS, you can install it with the following command:
+To install the COSMIC OpenCode Usage Tracker, you will need [just](https://github.com/casey/just). If you're on Pop!\_OS, you can install it with:
 
 ```sh
 sudo apt install just
 ```
 
-After you install it, you can run the following commands to build and install your applet:
+After you install it, you can run the following commands to build and install the applet:
 
 ```sh
 just build-release
 sudo just install
 ```
+
+## Usage
+
+After installation, the applet will appear in your COSMIC panel. Click it to view:
+- Total token usage (input, output, reasoning, cache)
+- Number of interactions
+- Estimated costs
+- Last updated timestamp
+
+## Development
+
+This project follows Test-Driven Development (TDD) principles. See the `features/` directory for detailed specifications and implementation tasks.
+
+Refer to the [COSMIC documentation](https://pop-os.github.io/libcosmic/cosmic/) for more information on building COSMIC applets.
+
+## License
+
+GPL-3.0

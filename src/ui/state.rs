@@ -3,7 +3,7 @@
 //! Panel state management for the UI
 
 use crate::core::config::AppConfig;
-use crate::core::models::CopilotUsage;
+use crate::core::opencode::UsageMetrics;
 use chrono::{DateTime, Utc};
 
 /// Represents the current state of the panel display
@@ -12,9 +12,9 @@ pub enum PanelState {
     /// Initial state when loading data
     Loading,
     /// Data successfully loaded and fresh
-    Success(CopilotUsage),
+    Success(UsageMetrics),
     /// Data loaded but potentially outdated
-    Stale(CopilotUsage),
+    Stale(UsageMetrics),
     /// Error occurred during data loading
     Error(String),
 }
@@ -36,13 +36,33 @@ impl PanelState {
     }
 
     /// Returns a reference to the usage data if available (Success or Stale)
-    pub fn get_usage(&self) -> Option<&CopilotUsage> {
+    pub fn get_usage(&self) -> Option<&UsageMetrics> {
         match self {
             PanelState::Success(usage) | PanelState::Stale(usage) => Some(usage),
             _ => None,
         }
     }
 }
+
+/// Display mode for usage metrics
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisplayMode {
+    /// Show all-time usage data
+    AllTime,
+    /// Show today's usage data only
+    Today,
+}
+
+impl DisplayMode {
+    /// Toggle between Today and AllTime modes
+    pub fn toggle(&self) -> Self {
+        match self {
+            DisplayMode::AllTime => DisplayMode::Today,
+            DisplayMode::Today => DisplayMode::AllTime,
+        }
+    }
+}
+
 
 /// Application state holding panel state and metadata
 #[derive(Debug, Clone)]
@@ -53,6 +73,8 @@ pub struct AppState {
     pub last_update: Option<DateTime<Utc>>,
     /// Application configuration
     pub config: AppConfig,
+    /// Current display mode (Today or AllTime)
+    pub display_mode: DisplayMode,
 }
 
 impl AppState {
@@ -62,11 +84,12 @@ impl AppState {
             panel_state: PanelState::Loading,
             last_update: None,
             config,
+            display_mode: DisplayMode::AllTime,
         }
     }
 
     /// Updates state with successful data fetch
-    pub fn update_success(&mut self, usage: CopilotUsage) {
+    pub fn update_success(&mut self, usage: UsageMetrics) {
         self.panel_state = PanelState::Success(usage);
         self.last_update = Some(Utc::now());
     }
@@ -99,35 +122,36 @@ impl AppState {
     pub fn is_initialized(&self) -> bool {
         self.config.validate().is_ok()
     }
+
+    /// Toggle the display mode between Today and AllTime
+    pub fn toggle_display_mode(&mut self) {
+        self.display_mode = self.display_mode.toggle();
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::models::UsageBreakdown;
+    use std::time::SystemTime;
 
-    fn create_mock_copilot_usage() -> CopilotUsage {
-        CopilotUsage {
-            total_suggestions_count: 100,
-            total_acceptances_count: 50,
-            total_lines_suggested: 200,
-            total_lines_accepted: 75,
-            day: "2025-09-30".to_string(),
-            breakdown: vec![UsageBreakdown {
-                language: "rust".to_string(),
-                editor: "vscode".to_string(),
-                suggestions_count: 100,
-                acceptances_count: 50,
-                lines_suggested: 200,
-                lines_accepted: 75,
-            }],
+    fn create_mock_usage_metrics() -> UsageMetrics {
+        UsageMetrics {
+            total_input_tokens: 1000,
+            total_output_tokens: 500,
+            total_reasoning_tokens: 200,
+            total_cache_write_tokens: 100,
+            total_cache_read_tokens: 50,
+            total_cost: 0.15,
+            interaction_count: 5,
+            timestamp: SystemTime::now(),
         }
     }
 
     fn create_mock_config() -> AppConfig {
         AppConfig {
-            organization_name: "test-org".to_string(),
+            storage_path: None, // Use default OpenCode storage path
             refresh_interval_seconds: 900,
+            show_today_usage: false,
         }
     }
 
@@ -146,7 +170,7 @@ mod tests {
     fn test_app_state_update_to_success() {
         let config = create_mock_config();
         let mut state = AppState::new(config);
-        let usage = create_mock_copilot_usage();
+        let usage = create_mock_usage_metrics();
         
         state.update_success(usage.clone());
         
@@ -175,7 +199,7 @@ mod tests {
     fn test_app_state_mark_stale() {
         let config = create_mock_config();
         let mut state = AppState::new(config);
-        let usage = create_mock_copilot_usage();
+        let usage = create_mock_usage_metrics();
         
         // First update to success
         state.update_success(usage.clone());
@@ -200,7 +224,7 @@ mod tests {
     fn test_needs_refresh_recent_update() {
         let config = create_mock_config(); // 900 seconds (15 min) interval
         let mut state = AppState::new(config);
-        let usage = create_mock_copilot_usage();
+        let usage = create_mock_usage_metrics();
         
         state.update_success(usage);
         
@@ -230,12 +254,38 @@ mod tests {
     #[test]
     fn test_is_initialized_invalid_config() {
         let invalid_config = AppConfig {
-            organization_name: "".to_string(), // Invalid: empty org name
-            refresh_interval_seconds: 900,
+            storage_path: None,
+            refresh_interval_seconds: 0, // Invalid: below minimum of 1
+            show_today_usage: false,
         };
         let state = AppState::new(invalid_config);
         
         assert!(!state.is_initialized());
+    }
+
+    #[test]
+    fn test_display_mode_default() {
+        let config = create_mock_config();
+        let state = AppState::new(config);
+        assert_eq!(state.display_mode, DisplayMode::AllTime);
+    }
+
+    #[test]
+    fn test_display_mode_toggle() {
+        let config = create_mock_config();
+        let mut state = AppState::new(config);
+        
+        assert_eq!(state.display_mode, DisplayMode::AllTime);
+        state.toggle_display_mode();
+        assert_eq!(state.display_mode, DisplayMode::Today);
+        state.toggle_display_mode();
+        assert_eq!(state.display_mode, DisplayMode::AllTime);
+    }
+
+    #[test]
+    fn test_display_mode_enum_toggle() {
+        assert_eq!(DisplayMode::AllTime.toggle(), DisplayMode::Today);
+        assert_eq!(DisplayMode::Today.toggle(), DisplayMode::AllTime);
     }
 
     // PanelState tests
@@ -243,7 +293,7 @@ mod tests {
     fn test_panel_state_variants_exist() {
         let _loading = PanelState::Loading;
         let _error = PanelState::Error("test error".to_string());
-        let usage = create_mock_copilot_usage();
+        let usage = create_mock_usage_metrics();
         let _success = PanelState::Success(usage.clone());
         let _stale = PanelState::Stale(usage);
     }
@@ -259,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_panel_state_success_holds_data() {
-        let usage = create_mock_copilot_usage();
+        let usage = create_mock_usage_metrics();
         let success = PanelState::Success(usage.clone());
         match success {
             PanelState::Success(data) => assert_eq!(data, usage),
@@ -287,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_has_data_returns_true_for_success_and_stale() {
-        let usage = create_mock_copilot_usage();
+        let usage = create_mock_usage_metrics();
         
         let success = PanelState::Success(usage.clone());
         assert!(success.has_data());
@@ -304,7 +354,7 @@ mod tests {
 
     #[test]
     fn test_get_usage_returns_data_for_success_and_stale() {
-        let usage = create_mock_copilot_usage();
+        let usage = create_mock_usage_metrics();
         
         let success = PanelState::Success(usage.clone());
         assert_eq!(success.get_usage(), Some(&usage));

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Cosmic Applet Copilot Quota Tracker library
+//! Cosmic Applet OpenCode Usage Tracker library
 //!
-//! This library provides the core functionality for tracking GitHub Copilot usage quotas.
+//! This library provides the core functionality for tracking OpenCode usage.
 
 pub mod app;
 pub mod core;
