@@ -413,13 +413,12 @@ impl Application for OpenCodeMonitorApplet {
                 // Show icon + detailed text in a row
                 return button::custom(
                     row()
-                        .push(icon::from_name(self.get_state_icon()).size(16))
-                        .push(self.core.applet.text(display_text))
+                        .push(icon::from_name(self.get_state_icon()).size(24))
+                        .push(cosmic::widget::text(display_text))
                         .spacing(8)
                         .align_y(cosmic::iced_core::Alignment::Center)
                 )
                 .on_press_down(Message::TogglePopup)
-                .class(cosmic::theme::Button::Text)
                 .into();
             }
         }
