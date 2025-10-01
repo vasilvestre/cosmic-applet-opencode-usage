@@ -7,7 +7,7 @@ use crate::viewer::Message;
 use chrono::{Datelike, NaiveDate, Utc};
 use cosmic::{
     iced::{Alignment, Length},
-    widget::{column, container, row, text},
+    widget::{column, container, text},
     Element,
 };
 use std::sync::Arc;
@@ -47,7 +47,7 @@ fn format_change(current: i64, previous: i64) -> (String, String) {
 
     #[allow(clippy::cast_precision_loss)]
     let change_pct = ((current - previous) as f64 / previous as f64) * 100.0;
-    
+
     let arrow = if change_pct > 0.0 {
         "UP"
     } else if change_pct < 0.0 {
@@ -69,7 +69,7 @@ fn format_cost_change(current: f64, previous: f64) -> (String, String) {
     }
 
     let change_pct = ((current - previous) / previous) * 100.0;
-    
+
     let arrow = if change_pct > 0.0 {
         "UP"
     } else if change_pct < 0.0 {
@@ -92,36 +92,19 @@ fn comparison_row(
     let (change_text, arrow) = format_change(current, previous);
     let current_str = format_number(current);
     let previous_str = format_number(previous);
-    
-    eprintln!("DEBUG comparison_row: label={label}, current={current}, previous={previous}");
-    eprintln!("DEBUG   formatted: current={current_str}, previous={previous_str}");
-    eprintln!("DEBUG   change: arrow={arrow}, change_text={change_text}");
-    
-    // Create all text elements with explicit String ownership
+
     let label_text = format!("{icon} {label}");
-    let this_week_label = "This Week: ".to_string();
-    let last_week_text = format!("(Last: {previous_str})");
-    
+    let value_display = format!("{current_str}  {arrow}  {change_text}");
+    let comparison = format!("(Last week: {previous_str})");
+
     column()
-        .push(
-            text(label_text)
-                .size(16)
-                .width(Length::Fill)
-        )
-        .push(
-            row()
-                .push(text(this_week_label).size(14))
-                .push(text(current_str).size(14))
-                .push(text(" ").size(14))
-                .push(text(arrow).size(16))
-                .push(text(" ").size(14))
-                .push(text(change_text).size(14))
-                .push(text(" ").size(14))
-                .push(text(last_week_text).size(12))
-                .spacing(8)
-        )
-        .spacing(5)
-        .padding([10, 0])
+        .push(text(label_text).size(16))
+        .push(text(value_display).size(20))
+        .push(text(comparison).size(13))
+        .spacing(4)
+        .padding([12, 0])
+        .align_x(Alignment::Center)
+        .width(Length::Fill)
         .into()
 }
 
@@ -135,31 +118,19 @@ fn cost_comparison_row(
     let (change_text, arrow) = format_cost_change(current, previous);
     let current_str = format_cost(current);
     let previous_str = format_cost(previous);
-    
+
     let label_text = format!("{icon} {label}");
-    let this_week_label = "This Week: ".to_string();
-    let last_week_text = format!("(Last: {previous_str})");
-    
+    let value_display = format!("{current_str}  {arrow}  {change_text}");
+    let comparison = format!("(Last week: {previous_str})");
+
     column()
-        .push(
-            text(label_text)
-                .size(16)
-                .width(Length::Fill)
-        )
-        .push(
-            row()
-                .push(text(this_week_label).size(14))
-                .push(text(current_str).size(14))
-                .push(text(" ").size(14))
-                .push(text(arrow).size(16))
-                .push(text(" ").size(14))
-                .push(text(change_text).size(14))
-                .push(text(" ").size(14))
-                .push(text(last_week_text).size(12))
-                .spacing(8)
-        )
-        .spacing(5)
-        .padding([10, 0])
+        .push(text(label_text).size(16))
+        .push(text(value_display).size(20))
+        .push(text(comparison).size(13))
+        .spacing(4)
+        .padding([12, 0])
+        .align_x(Alignment::Center)
+        .width(Length::Fill)
         .into()
 }
 
@@ -176,23 +147,27 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
     eprintln!("DEBUG: Fetching this week summary starting {this_week_start}");
     let this_week = match repository.get_week_summary(this_week_start) {
         Ok(summary) => {
-            eprintln!("DEBUG: This week summary: input={}, output={}, cost={}", 
-                summary.total_input_tokens, summary.total_output_tokens, summary.total_cost);
+            eprintln!(
+                "DEBUG: This week summary: input={}, output={}, cost={}",
+                summary.total_input_tokens, summary.total_output_tokens, summary.total_cost
+            );
             Some(summary)
-        },
+        }
         Err(e) => {
             eprintln!("ERROR: Failed to get this week summary: {e}");
             None
         }
     };
-    
+
     eprintln!("DEBUG: Fetching last week summary starting {last_week_start}");
     let last_week = match repository.get_week_summary(last_week_start) {
         Ok(summary) => {
-            eprintln!("DEBUG: Last week summary: input={}, output={}, cost={}", 
-                summary.total_input_tokens, summary.total_output_tokens, summary.total_cost);
+            eprintln!(
+                "DEBUG: Last week summary: input={}, output={}, cost={}",
+                summary.total_input_tokens, summary.total_output_tokens, summary.total_cost
+            );
             Some(summary)
-        },
+        }
         Err(e) => {
             eprintln!("ERROR: Failed to get last week summary: {e}");
             None
@@ -203,11 +178,11 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
         .push(
             text("OpenCode Usage - Weekly Comparison")
                 .size(28)
-                .width(Length::Fill)
+                .width(Length::Fill),
         )
         .spacing(20)
         .padding(40)
-        .align_x(Alignment::Start);
+        .align_x(Alignment::Center);
 
     // Add date range info
     if let Some(ref tw) = this_week {
@@ -219,7 +194,7 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
                 last_week_start.format("%b %d"),
                 (last_week_start + chrono::Duration::days(6)).format("%b %d")
             ))
-            .size(14)
+            .size(14),
         );
     }
 
@@ -265,9 +240,51 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
             content = content
                 .push(text("No data available for last week").size(14))
                 .push(text("").size(10))
-                .push(text(format!("This Week Input: {}", format_number(tw.total_input_tokens))).size(14))
-                .push(text(format!("This Week Output: {}", format_number(tw.total_output_tokens))).size(14))
-                .push(text(format!("This Week Cost: {}", format_cost(tw.total_cost))).size(14));
+                .push(
+                    column()
+                        .push(text("📝 Input Tokens").size(16))
+                        .push(text(format_number(tw.total_input_tokens)).size(20))
+                        .spacing(4)
+                        .padding([12, 0])
+                        .align_x(Alignment::Center)
+                        .width(Length::Fill),
+                )
+                .push(
+                    column()
+                        .push(text("📤 Output Tokens").size(16))
+                        .push(text(format_number(tw.total_output_tokens)).size(20))
+                        .spacing(4)
+                        .padding([12, 0])
+                        .align_x(Alignment::Center)
+                        .width(Length::Fill),
+                )
+                .push(
+                    column()
+                        .push(text("🧠 Reasoning Tokens").size(16))
+                        .push(text(format_number(tw.total_reasoning_tokens)).size(20))
+                        .spacing(4)
+                        .padding([12, 0])
+                        .align_x(Alignment::Center)
+                        .width(Length::Fill),
+                )
+                .push(
+                    column()
+                        .push(text("💰 Total Cost").size(16))
+                        .push(text(format_cost(tw.total_cost)).size(20))
+                        .spacing(4)
+                        .padding([12, 0])
+                        .align_x(Alignment::Center)
+                        .width(Length::Fill),
+                )
+                .push(
+                    column()
+                        .push(text("🔄 Interactions").size(16))
+                        .push(text(format_number(tw.total_interactions)).size(20))
+                        .spacing(4)
+                        .padding([12, 0])
+                        .align_x(Alignment::Center)
+                        .width(Length::Fill),
+                );
         }
         (None, Some(_lw)) => {
             content = content.push(text("No data available for this week yet").size(14));
@@ -299,7 +316,7 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
         let db = Arc::new(DatabaseManager::new_with_path(&db_path).unwrap());
         let repository = Arc::new(UsageRepository::new(db));
-        
+
         // Test that view_content returns a valid Element with empty database
         let _element = view_content(&repository);
         // If this compiles and runs, the test passes

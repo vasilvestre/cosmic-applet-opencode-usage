@@ -528,10 +528,7 @@ mod tests {
 
         // Verify aggregation
         assert_eq!(summary.start_date, week_start);
-        assert_eq!(
-            summary.end_date,
-            week_start + chrono::Duration::days(6)
-        );
+        assert_eq!(summary.end_date, week_start + chrono::Duration::days(6));
 
         // Sum of 1000, 2000, 3000, 4000, 5000, 6000, 7000 = 28000
         assert_eq!(summary.total_input_tokens, 28000);
