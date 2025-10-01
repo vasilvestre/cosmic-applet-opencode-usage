@@ -86,7 +86,7 @@ impl AppState {
             panel_state: PanelState::Loading,
             last_update: None,
             config,
-            display_mode: DisplayMode::AllTime,
+            display_mode: DisplayMode::Today,
             today_usage: None,
         }
     }
@@ -280,7 +280,7 @@ mod tests {
     fn test_display_mode_default() {
         let config = create_mock_config();
         let state = AppState::new(config);
-        assert_eq!(state.display_mode, DisplayMode::AllTime);
+        assert_eq!(state.display_mode, DisplayMode::Today);
     }
 
     #[test]
@@ -288,11 +288,11 @@ mod tests {
         let config = create_mock_config();
         let mut state = AppState::new(config);
         
-        assert_eq!(state.display_mode, DisplayMode::AllTime);
-        state.toggle_display_mode();
         assert_eq!(state.display_mode, DisplayMode::Today);
         state.toggle_display_mode();
         assert_eq!(state.display_mode, DisplayMode::AllTime);
+        state.toggle_display_mode();
+        assert_eq!(state.display_mode, DisplayMode::Today);
     }
 
     #[test]
