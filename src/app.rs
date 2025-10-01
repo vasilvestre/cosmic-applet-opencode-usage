@@ -7,7 +7,7 @@ use cosmic::{
         window,
         platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup},
     },
-    widget::{button, checkbox, column, container, row, scrollable, text, text_input},
+    widget::{button, checkbox, column, row, scrollable, text, text_input},
 };
 
 use crate::core::config::{AppConfig, ConfigError, ConfigWarning, validate_refresh_interval};
@@ -404,16 +404,18 @@ impl Application for OpenCodeMonitorApplet {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        use crate::ui::formatters::format_cost_compact;
+        use crate::ui::formatters::format_panel_display;
         
-        // If show_today_usage is enabled and we have today's data, show cost text as button
+        // If show_today_usage is enabled and we have today's data, show cost and tokens as button
         if self.state.config.show_today_usage {
             if let Some(today_usage) = &self.state.today_usage {
-                let cost_text = format_cost_compact(today_usage.total_cost);
-                return container(
-                    button::standard(cost_text)
-                        .on_press(Message::TogglePopup)
+                let display_text = format_panel_display(today_usage);
+                // Use button::custom with applet.text() for proper panel scaling
+                return button::custom(
+                    self.core.applet.text(display_text)
                 )
+                .on_press_down(Message::TogglePopup)
+                .class(cosmic::theme::Button::AppletIcon)
                 .into();
             }
         }
@@ -513,7 +515,7 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             let usage = create_mock_usage_metrics();
             
-            applet.handle_message(Message::MetricsFetched(Ok(usage.clone())));
+            let _ = applet.handle_message(Message::MetricsFetched(Ok(usage.clone())));
             
             assert!(matches!(applet.state.panel_state, PanelState::Success(_)));
             assert!(applet.state.last_update.is_some());
@@ -526,7 +528,7 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             let error = "Test error".to_string();
             
-            applet.handle_message(Message::MetricsFetched(Err(error)));
+            let _ = applet.handle_message(Message::MetricsFetched(Err(error)));
             
             assert!(matches!(applet.state.panel_state, PanelState::Error(_)));
         }
@@ -537,15 +539,15 @@ mod tests {
         let config = create_mock_config();
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Open settings
-            applet.handle_message(Message::OpenSettings);
+            let _ = applet.handle_message(Message::OpenSettings);
             assert!(applet.settings_dialog_open);
             
             // Update refresh interval
-            applet.handle_message(Message::UpdateRefreshInterval(1800));
+            let _ = applet.handle_message(Message::UpdateRefreshInterval(1800));
             assert_eq!(applet.temp_refresh_interval, 1800);
             
             // Close settings
-            applet.handle_message(Message::CloseSettings);
+            let _ = applet.handle_message(Message::CloseSettings);
             assert!(!applet.settings_dialog_open);
         }
     }

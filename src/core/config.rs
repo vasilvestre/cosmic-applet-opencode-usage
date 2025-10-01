@@ -27,7 +27,7 @@ pub struct AppConfig {
     pub storage_path: Option<PathBuf>,
     /// Refresh interval in seconds (default: 900 = 15 minutes)
     pub refresh_interval_seconds: u32,
-    /// Show today's usage next to the icon in the panel (default: false)
+    /// Show today's usage next to the icon in the panel (default: true)
     pub show_today_usage: bool,
 }
 
@@ -36,7 +36,7 @@ impl Default for AppConfig {
         Self {
             storage_path: None, // Will use default path from OpenCodeUsageReader
             refresh_interval_seconds: 900,
-            show_today_usage: false,
+            show_today_usage: true,
         }
     }
 }
@@ -77,7 +77,7 @@ mod tests {
         let config = AppConfig::default();
         assert_eq!(config.storage_path, None);
         assert_eq!(config.refresh_interval_seconds, 900);
-        assert_eq!(config.show_today_usage, false);
+        assert_eq!(config.show_today_usage, true);
     }
 
     #[test]
