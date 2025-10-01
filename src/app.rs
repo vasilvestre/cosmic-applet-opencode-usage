@@ -414,13 +414,12 @@ impl Application for OpenCodeMonitorApplet {
                 return button::custom(
                     row()
                         .push(icon::from_name(self.get_state_icon()).size(16))
-                        .push(cosmic::widget::text(display_text))
+                        .push(self.core.applet.text(display_text))
                         .spacing(8)
-                        .padding([8, 12])
-                        .height(cosmic::iced_core::Length::Fixed(32.0))
                         .align_y(cosmic::iced_core::Alignment::Center)
                 )
                 .on_press_down(Message::TogglePopup)
+                .class(cosmic::theme::Button::Text)
                 .into();
             }
         }
