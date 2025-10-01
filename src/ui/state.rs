@@ -11,6 +11,8 @@ use chrono::{DateTime, Utc};
 pub enum PanelState {
     /// Initial state when loading data
     Loading,
+    /// Loading new data while displaying previous data
+    LoadingWithData(UsageMetrics),
     /// Data successfully loaded and fresh
     Success(UsageMetrics),
     /// Data loaded but potentially outdated
@@ -20,9 +22,9 @@ pub enum PanelState {
 }
 
 impl PanelState {
-    /// Returns true if the state is Loading
+    /// Returns true if the state is Loading or LoadingWithData
     pub fn is_loading(&self) -> bool {
-        matches!(self, PanelState::Loading)
+        matches!(self, PanelState::Loading | PanelState::LoadingWithData(_))
     }
 
     /// Returns true if the state is Error
@@ -30,15 +32,15 @@ impl PanelState {
         matches!(self, PanelState::Error(_))
     }
 
-    /// Returns true if the state has data (Success or Stale)
+    /// Returns true if the state has data (Success or Stale or LoadingWithData)
     pub fn has_data(&self) -> bool {
-        matches!(self, PanelState::Success(_) | PanelState::Stale(_))
+        matches!(self, PanelState::Success(_) | PanelState::Stale(_) | PanelState::LoadingWithData(_))
     }
 
-    /// Returns a reference to the usage data if available (Success or Stale)
+    /// Returns a reference to the usage data if available (Success, Stale, or LoadingWithData)
     pub fn get_usage(&self) -> Option<&UsageMetrics> {
         match self {
-            PanelState::Success(usage) | PanelState::Stale(usage) => Some(usage),
+            PanelState::Success(usage) | PanelState::Stale(usage) | PanelState::LoadingWithData(usage) => Some(usage),
             _ => None,
         }
     }
@@ -51,16 +53,8 @@ pub enum DisplayMode {
     AllTime,
     /// Show today's usage data only
     Today,
-}
-
-impl DisplayMode {
-    /// Toggle between Today and AllTime modes
-    pub fn toggle(&self) -> Self {
-        match self {
-            DisplayMode::AllTime => DisplayMode::Today,
-            DisplayMode::Today => DisplayMode::AllTime,
-        }
-    }
+    /// Show this month's usage data only
+    Month,
 }
 
 
@@ -77,6 +71,8 @@ pub struct AppState {
     pub display_mode: DisplayMode,
     /// Today's usage for panel display (cached)
     pub today_usage: Option<UsageMetrics>,
+    /// This month's usage for panel display (cached)
+    pub month_usage: Option<UsageMetrics>,
 }
 
 impl AppState {
@@ -88,6 +84,17 @@ impl AppState {
             config,
             display_mode: DisplayMode::Today,
             today_usage: None,
+            month_usage: None,
+        }
+    }
+
+    /// Sets state to loading, preserving existing data if available
+    pub fn set_loading(&mut self) {
+        // If we have existing data, preserve it during loading
+        if let Some(usage) = self.panel_state.get_usage() {
+            self.panel_state = PanelState::LoadingWithData(usage.clone());
+        } else {
+            self.panel_state = PanelState::Loading;
         }
     }
 
@@ -126,11 +133,6 @@ impl AppState {
         self.config.validate().is_ok()
     }
 
-    /// Toggle the display mode between Today and AllTime
-    pub fn toggle_display_mode(&mut self) {
-        self.display_mode = self.display_mode.toggle();
-    }
-
     /// Update today's usage for panel display
     pub fn update_today_usage(&mut self, usage: UsageMetrics) {
         self.today_usage = Some(usage);
@@ -139,6 +141,16 @@ impl AppState {
     /// Clear today's usage cache
     pub fn clear_today_usage(&mut self) {
         self.today_usage = None;
+    }
+
+    /// Update this month's usage for panel display
+    pub fn update_month_usage(&mut self, usage: UsageMetrics) {
+        self.month_usage = Some(usage);
+    }
+
+    /// Clear this month's usage cache
+    pub fn clear_month_usage(&mut self) {
+        self.month_usage = None;
     }
 }
 
@@ -163,7 +175,7 @@ mod tests {
     fn create_mock_config() -> AppConfig {
         AppConfig {
             storage_path: None, // Use default OpenCode storage path
-            refresh_interval_seconds: 900,
+            refresh_interval_seconds: 60,
             show_today_usage: false,
             use_raw_token_display: false,
         }
@@ -178,6 +190,21 @@ mod tests {
         assert!(state.panel_state.is_loading());
         assert_eq!(state.last_update, None);
         assert_eq!(state.config, config);
+    }
+
+    #[test]
+    fn test_app_state_set_loading() {
+        let config = create_mock_config();
+        let mut state = AppState::new(config);
+        let usage = create_mock_usage_metrics();
+        
+        // Start in Success state
+        state.update_success(usage);
+        assert!(matches!(state.panel_state, PanelState::Success(_)));
+        
+        // Set to loading
+        state.set_loading();
+        assert!(state.panel_state.is_loading());
     }
 
     #[test]
@@ -286,21 +313,11 @@ mod tests {
     }
 
     #[test]
-    fn test_display_mode_toggle() {
-        let config = create_mock_config();
-        let mut state = AppState::new(config);
-        
-        assert_eq!(state.display_mode, DisplayMode::Today);
-        state.toggle_display_mode();
-        assert_eq!(state.display_mode, DisplayMode::AllTime);
-        state.toggle_display_mode();
-        assert_eq!(state.display_mode, DisplayMode::Today);
-    }
-
-    #[test]
-    fn test_display_mode_enum_toggle() {
-        assert_eq!(DisplayMode::AllTime.toggle(), DisplayMode::Today);
-        assert_eq!(DisplayMode::Today.toggle(), DisplayMode::AllTime);
+    fn test_display_mode_month_variant_exists() {
+        let mode = DisplayMode::Month;
+        assert_eq!(mode, DisplayMode::Month);
+        assert_ne!(mode, DisplayMode::Today);
+        assert_ne!(mode, DisplayMode::AllTime);
     }
 
     #[test]
@@ -327,6 +344,32 @@ mod tests {
         
         state.clear_today_usage();
         assert!(state.today_usage.is_none());
+    }
+
+    #[test]
+    fn test_update_month_usage() {
+        let config = create_mock_config();
+        let mut state = AppState::new(config);
+        let usage = create_mock_usage_metrics();
+        
+        assert!(state.month_usage.is_none());
+        
+        state.update_month_usage(usage.clone());
+        assert!(state.month_usage.is_some());
+        assert_eq!(state.month_usage.unwrap(), usage);
+    }
+
+    #[test]
+    fn test_clear_month_usage() {
+        let config = create_mock_config();
+        let mut state = AppState::new(config);
+        let usage = create_mock_usage_metrics();
+        
+        state.update_month_usage(usage);
+        assert!(state.month_usage.is_some());
+        
+        state.clear_month_usage();
+        assert!(state.month_usage.is_none());
     }
 
     // PanelState tests

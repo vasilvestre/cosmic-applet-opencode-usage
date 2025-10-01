@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 use thiserror::Error;
 use walkdir::WalkDir;
+use rayon::prelude::*;
 
 /// Error types for scanning operations
 #[derive(Debug, Error)]
@@ -72,12 +73,23 @@ impl StorageScanner {
         Ok(json_files)
     }
     
+    /// Get the storage path
+    pub fn storage_path(&self) -> &PathBuf {
+        &self.storage_path
+    }
+    
     /// Scan the storage directory and return file metadata (path + modified time)
     pub fn scan_with_metadata(&self) -> Result<Vec<FileMetadata>, ScannerError> {
-        let metadata: Vec<FileMetadata> = WalkDir::new(&self.storage_path)
+        // First, collect all directory entries (fast I/O operation)
+        let entries: Vec<_> = WalkDir::new(&self.storage_path)
             .follow_links(false)
             .into_iter()
             .filter_map(|e| e.ok())
+            .collect();
+        
+        // Then, process entries in parallel using rayon
+        let metadata: Vec<FileMetadata> = entries
+            .par_iter()
             .filter_map(|entry| {
                 let path = entry.path();
                 if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
@@ -88,6 +100,55 @@ impl StorageScanner {
                                 path: path.to_path_buf(),
                                 modified,
                             }),
+                            Err(_) => {
+                                // Skip files we can't get modification time for
+                                None
+                            }
+                        },
+                        Err(_) => {
+                            // Skip files we can't get metadata for
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+        
+        Ok(metadata)
+    }
+    
+    /// Scan the storage directory and return only files modified after the cutoff time
+    /// This is optimized to skip old files during the walk, reducing I/O overhead
+    pub fn scan_modified_since(&self, cutoff: SystemTime) -> Result<Vec<FileMetadata>, ScannerError> {
+        // First, collect all directory entries (fast I/O operation)
+        let entries: Vec<_> = WalkDir::new(&self.storage_path)
+            .follow_links(false)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .collect();
+        
+        // Then, process entries in parallel using rayon, filtering by modification time
+        let metadata: Vec<FileMetadata> = entries
+            .par_iter()
+            .filter_map(|entry| {
+                let path = entry.path();
+                if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
+                    // Get modification time
+                    match entry.metadata() {
+                        Ok(meta) => match meta.modified() {
+                            Ok(modified) => {
+                                // Only include files modified after cutoff
+                                if modified >= cutoff {
+                                    Some(FileMetadata {
+                                        path: path.to_path_buf(),
+                                        modified,
+                                    })
+                                } else {
+                                    None
+                                }
+                            }
                             Err(_) => {
                                 // Skip files we can't get modification time for
                                 None
@@ -288,6 +349,52 @@ mod tests {
         let metadata = scanner.scan_with_metadata().expect("Should scan successfully");
         
         assert_eq!(metadata.len(), 2, "Should find only 2 JSON files");
+        
+        fs::remove_dir_all(test_dir).ok();
+    }
+    
+    // Test 9: scan_modified_since filters files by modification time
+    #[test]
+    fn test_scanner_modified_since() {
+        use std::time::Duration;
+        
+        let test_dir = create_test_dir("modified_since");
+        
+        // Create old files
+        create_test_file(&test_dir, "old1.json", r#"{"test": 1}"#);
+        create_test_file(&test_dir, "old2.json", r#"{"test": 2}"#);
+        
+        // Set modification time to 2 days ago
+        let two_days_ago = SystemTime::now() - Duration::from_secs(48 * 60 * 60);
+        filetime::set_file_mtime(
+            &test_dir.join("old1.json"),
+            filetime::FileTime::from_system_time(two_days_ago)
+        ).expect("Failed to set file time");
+        filetime::set_file_mtime(
+            &test_dir.join("old2.json"),
+            filetime::FileTime::from_system_time(two_days_ago)
+        ).expect("Failed to set file time");
+        
+        // Sleep briefly to ensure different timestamp
+        std::thread::sleep(Duration::from_millis(10));
+        
+        // Create recent files
+        create_test_file(&test_dir, "recent1.json", r#"{"test": 3}"#);
+        create_test_file(&test_dir, "recent2.json", r#"{"test": 4}"#);
+        
+        let scanner = StorageScanner::with_path(test_dir.clone())
+            .expect("Should create scanner");
+        
+        // Scan only files modified in last 24 hours
+        let cutoff = SystemTime::now() - Duration::from_secs(24 * 60 * 60);
+        let metadata = scanner.scan_modified_since(cutoff)
+            .expect("Should scan successfully");
+        
+        // Should only find the 2 recent files
+        assert_eq!(metadata.len(), 2, "Should find only recent files");
+        for file in &metadata {
+            assert!(file.modified > cutoff, "All files should be after cutoff");
+        }
         
         fs::remove_dir_all(test_dir).ok();
     }

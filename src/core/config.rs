@@ -33,7 +33,7 @@ pub enum ConfigWarning {
 pub struct AppConfig {
     /// Path to OpenCode storage directory (optional, defaults to ~/.local/share/opencode/storage/part)
     pub storage_path: Option<PathBuf>,
-    /// Refresh interval in seconds (default: 900 = 15 minutes)
+    /// Refresh interval in seconds (default: 60 = 1 minute)
     pub refresh_interval_seconds: u32,
     /// Show today's usage next to the icon in the panel (default: true)
     pub show_today_usage: bool,
@@ -45,7 +45,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             storage_path: None, // Will use default path from OpenCodeUsageReader
-            refresh_interval_seconds: 900,
+            refresh_interval_seconds: 60,
             show_today_usage: true,
             use_raw_token_display: false,
         }
@@ -140,7 +140,7 @@ mod tests {
     fn test_default_config() {
         let config = AppConfig::default();
         assert_eq!(config.storage_path, None);
-        assert_eq!(config.refresh_interval_seconds, 900);
+        assert_eq!(config.refresh_interval_seconds, 60);
         assert_eq!(config.show_today_usage, true);
         assert_eq!(config.use_raw_token_display, false);
     }
