@@ -3,7 +3,7 @@ use std::time::Instant;
 
 fn main() {
     println!("Testing real-world performance with actual OpenCode storage...\n");
-    
+
     match OpenCodeUsageReader::new() {
         Ok(mut reader) => {
             // Test 1: First all-time read (cold)
@@ -17,7 +17,7 @@ fn main() {
                 }
                 Err(e) => println!("✗ Error reading all-time: {}", e),
             }
-            
+
             // Test 2: Today's usage
             let start = Instant::now();
             match reader.get_usage_today() {
@@ -29,7 +29,7 @@ fn main() {
                 }
                 Err(e) => println!("\n✗ Error reading today: {}", e),
             }
-            
+
             // Test 3: All-time again (should be cached)
             let start = Instant::now();
             match reader.get_usage() {

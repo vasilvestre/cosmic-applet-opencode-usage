@@ -5,6 +5,10 @@
 use crate::core::opencode::UsageMetrics;
 use crate::ui::state::DisplayMode;
 
+/// Result type for metrics fetch containing main, today, and month metrics
+pub type MetricsFetchResult =
+    Result<(UsageMetrics, Option<UsageMetrics>, Option<UsageMetrics>), String>;
+
 /// Messages that can be sent to update the application state
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -12,7 +16,7 @@ pub enum Message {
     FetchMetrics,
     /// Metrics fetch completed (success or error)
     /// Contains main metrics, optionally today's metrics, and optionally month metrics for panel display
-    MetricsFetched(Result<(UsageMetrics, Option<UsageMetrics>, Option<UsageMetrics>), String>),
+    MetricsFetched(Box<MetricsFetchResult>),
     /// Theme changed (visual refresh needed)
     ThemeChanged,
     /// Tooltip needs update

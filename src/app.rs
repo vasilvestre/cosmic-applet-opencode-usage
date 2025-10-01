@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use cosmic::{
-    Element, Application,
     app::{Core, Task},
     iced::{
-        window, Alignment, Subscription,
         futures::SinkExt,
         platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup},
+        window, Alignment, Subscription,
     },
     iced_futures::stream,
     widget::{autosize, button, checkbox, column, icon, row, scrollable, text, text_input, Id},
+    Application, Element,
 };
 use std::sync::LazyLock;
-use tokio::{time, sync::watch};
+use tokio::{sync::watch, time};
 
 static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
-use crate::core::config::{AppConfig, ConfigError, ConfigWarning, validate_refresh_interval};
+use crate::core::config::{validate_refresh_interval, AppConfig, ConfigError, ConfigWarning};
 use crate::core::opencode::OpenCodeUsageReader;
-use crate::ui::state::{AppState, PanelState, DisplayMode};
+use crate::ui::state::{AppState, DisplayMode, PanelState};
 use crate::ui::Message;
 
 /// OpenCode usage monitor applet structure
@@ -51,14 +51,14 @@ impl OpenCodeMonitorApplet {
         } else {
             OpenCodeUsageReader::new()?
         };
-        
+
         let temp_refresh_interval = config.refresh_interval_seconds;
         let temp_show_today_usage = config.show_today_usage;
         let temp_use_raw_token_display = config.use_raw_token_display;
-        
+
         // Create watch channel for refresh interval updates
         let (refresh_interval_tx, _rx) = watch::channel(config.refresh_interval_seconds);
-        
+
         Ok(Self {
             core: Core::default(),
             state: AppState::new(config),
@@ -79,27 +79,30 @@ impl OpenCodeMonitorApplet {
     pub fn handle_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::FetchMetrics => {
-                eprintln!("[FetchMetrics] Starting async OpenCode usage read (mode: {:?})", self.state.display_mode);
-                
+                eprintln!(
+                    "[FetchMetrics] Starting async OpenCode usage read (mode: {:?})",
+                    self.state.display_mode
+                );
+
                 // Set loading state
                 self.state.set_loading();
-                
+
                 // Clone the storage path for async task
                 let storage_path = self.reader.storage_path().clone();
                 let display_mode = self.state.display_mode;
                 let show_today_usage = self.state.config.show_today_usage;
-                
+
                 // Spawn async task to fetch metrics in background
                 Task::perform(
                     async move {
                         // Create a new reader in the async context
                         let mut reader = match OpenCodeUsageReader::new_with_path(
-                            storage_path.to_str().unwrap_or("")
+                            storage_path.to_str().unwrap_or(""),
                         ) {
                             Ok(r) => r,
                             Err(e) => return Err(format!("Failed to create reader: {}", e)),
                         };
-                        
+
                         // Fetch main metrics based on display mode
                         let metrics = match display_mode {
                             DisplayMode::Today => {
@@ -115,12 +118,12 @@ impl OpenCodeMonitorApplet {
                                 reader.get_usage()
                             }
                         };
-                        
+
                         let main_metrics = metrics.map_err(|e| {
                             eprintln!("[Async] Error reading metrics: {}", e);
                             format!("Failed to read OpenCode usage: {}", e)
                         })?;
-                        
+
                         // If show_today_usage is enabled, also fetch today's data
                         let today_metrics = if show_today_usage {
                             eprintln!("[Async] Fetching today's usage for panel");
@@ -128,7 +131,7 @@ impl OpenCodeMonitorApplet {
                         } else {
                             None
                         };
-                        
+
                         // Always fetch month data for caching (independent of display mode)
                         let month_metrics = if display_mode != DisplayMode::Month {
                             eprintln!("[Async] Fetching this month's usage for cache");
@@ -137,42 +140,53 @@ impl OpenCodeMonitorApplet {
                             // In Month mode, main_metrics already contains month data
                             None
                         };
-                        
+
                         Ok((main_metrics, today_metrics, month_metrics))
                     },
-                    |result| cosmic::Action::App(Message::MetricsFetched(result)),
+                    |result| cosmic::Action::App(Message::MetricsFetched(Box::new(result))),
                 )
             }
-            Message::MetricsFetched(Ok((usage, today_opt, month_opt))) => {
-                eprintln!("[MetricsFetched] Received successful metrics data");
-                
-                // If we're in Month mode, the main usage is the month data - cache it
-                if self.state.display_mode == DisplayMode::Month {
-                    eprintln!("[MetricsFetched] Caching month usage from main metrics: ${:.2}", usage.total_cost);
-                    self.state.update_month_usage(usage.clone());
+            Message::MetricsFetched(boxed_result) => match *boxed_result {
+                Ok((usage, today_opt, month_opt)) => {
+                    eprintln!("[MetricsFetched] Received successful metrics data");
+
+                    // If we're in Month mode, the main usage is the month data - cache it
+                    if self.state.display_mode == DisplayMode::Month {
+                        eprintln!(
+                            "[MetricsFetched] Caching month usage from main metrics: ${:.2}",
+                            usage.total_cost
+                        );
+                        self.state.update_month_usage(usage.clone());
+                    }
+
+                    self.state.update_success(usage);
+
+                    // Update today's usage if provided
+                    if let Some(today) = today_opt {
+                        eprintln!(
+                            "[MetricsFetched] Updating today's usage for panel: ${:.2}",
+                            today.total_cost
+                        );
+                        self.state.update_today_usage(today);
+                    }
+
+                    // Update month's usage if provided (when not in Month mode)
+                    if let Some(month) = month_opt {
+                        eprintln!(
+                            "[MetricsFetched] Updating month's usage cache: ${:.2}",
+                            month.total_cost
+                        );
+                        self.state.update_month_usage(month);
+                    }
+
+                    Task::none()
                 }
-                
-                self.state.update_success(usage);
-                
-                // Update today's usage if provided
-                if let Some(today) = today_opt {
-                    eprintln!("[MetricsFetched] Updating today's usage for panel: ${:.2}", today.total_cost);
-                    self.state.update_today_usage(today);
+                Err(error) => {
+                    eprintln!("[MetricsFetched] Received error: {}", error);
+                    self.state.update_error(error);
+                    Task::none()
                 }
-                
-                // Update month's usage if provided (when not in Month mode)
-                if let Some(month) = month_opt {
-                    eprintln!("[MetricsFetched] Updating month's usage cache: ${:.2}", month.total_cost);
-                    self.state.update_month_usage(month);
-                }
-                
-                Task::none()
-            }
-            Message::MetricsFetched(Err(error)) => {
-                eprintln!("[MetricsFetched] Received error: {}", error);
-                self.state.update_error(error);
-                Task::none()
-            }
+            },
             Message::ThemeChanged => Task::none(),
             Message::UpdateTooltip => Task::none(),
             Message::OpenSettings => {
@@ -230,21 +244,21 @@ impl OpenCodeMonitorApplet {
                 self.state.config.refresh_interval_seconds = self.temp_refresh_interval;
                 self.state.config.show_today_usage = self.temp_show_today_usage;
                 self.state.config.use_raw_token_display = self.temp_use_raw_token_display;
-                
+
                 // Notify subscription of refresh interval change
                 let _ = self.refresh_interval_tx.send(self.temp_refresh_interval);
-                
+
                 // Persist config to disk
                 if let Err(err) = self.state.config.save() {
                     eprintln!("Warning: Failed to save config: {}", err);
                     // Don't block the UI if save fails - just log it
                 }
-                
+
                 // Clear today's usage cache if the setting was disabled
                 if !self.temp_show_today_usage {
                     self.state.clear_today_usage();
                 }
-                
+
                 // Success: close settings
                 self.settings_dialog_open = false;
                 self.popup = None;
@@ -262,7 +276,7 @@ impl OpenCodeMonitorApplet {
                     self.settings_dialog_open = false;
                     self.config_error = None;
                     self.config_warning = None;
-                    return destroy_popup(p);
+                    destroy_popup(p)
                 } else {
                     eprintln!("DEBUG: Opening popup");
                     let new_id = window::Id::unique();
@@ -271,18 +285,15 @@ impl OpenCodeMonitorApplet {
 
                     if let Some(main_id) = self.core.main_window_id() {
                         eprintln!("DEBUG: Got main window id: {:?}", main_id);
-                        let popup_settings = self.core.applet.get_popup_settings(
-                            main_id,
-                            new_id,
-                            None,
-                            None,
-                            None,
-                        );
+                        let popup_settings = self
+                            .core
+                            .applet
+                            .get_popup_settings(main_id, new_id, None, None, None);
                         eprintln!("DEBUG: Created popup settings, calling get_popup");
-                        return get_popup(popup_settings);
+                        get_popup(popup_settings)
                     } else {
                         eprintln!("DEBUG: No main window ID - returning Task::none()");
-                        return Task::none();
+                        Task::none()
                     }
                 }
             }
@@ -311,94 +322,99 @@ impl OpenCodeMonitorApplet {
 
     /// Build the metrics popup view
     fn metrics_popup_view(&self) -> Element<'_, Message> {
-        use crate::ui::formatters::{format_number, format_cost, format_tooltip};
-        
+        use crate::ui::formatters::{format_cost, format_number, format_tooltip};
+
         let main_content = match &self.state.panel_state {
-            PanelState::Loading => {
-                column()
-                    .push(text("Loading...").size(16))
-                    .push(text("").size(8))
-                    .push(button::standard("Settings").on_press(Message::OpenSettings))
-                    .spacing(10)
-                    .padding(20)
-            }
-            PanelState::Error(err) => {
-                column()
-                    .push(text("Error").size(20))
-                    .push(text(err).size(14))
-                    .push(text("").size(8))
-                    .push(button::standard("Retry").on_press(Message::FetchMetrics))
-                    .push(button::standard("Settings").on_press(Message::OpenSettings))
-                    .spacing(10)
-                    .padding(20)
-            }
-            PanelState::Success(usage) | PanelState::Stale(usage) | PanelState::LoadingWithData(usage) => {
+            PanelState::Loading => column()
+                .push(text("Loading...").size(16))
+                .push(text("").size(8))
+                .push(button::standard("Settings").on_press(Message::OpenSettings))
+                .spacing(10)
+                .padding(20),
+            PanelState::Error(err) => column()
+                .push(text("Error").size(20))
+                .push(text(err).size(14))
+                .push(text("").size(8))
+                .push(button::standard("Retry").on_press(Message::FetchMetrics))
+                .push(button::standard("Settings").on_press(Message::OpenSettings))
+                .spacing(10)
+                .padding(20),
+            PanelState::Success(usage)
+            | PanelState::Stale(usage)
+            | PanelState::LoadingWithData(usage) => {
                 // Determine if we're loading
                 let is_loading = matches!(self.state.panel_state, PanelState::LoadingWithData(_));
-                
+
                 // Determine title based on current mode
                 let title = match self.state.display_mode {
                     DisplayMode::Today => "Today's Usage",
                     DisplayMode::Month => "This Month's Usage",
                     DisplayMode::AllTime => "All-Time Usage",
                 };
-                
+
                 // Create three tab buttons
                 let today_button = if self.state.display_mode == DisplayMode::Today {
                     button::suggested("Today")
                 } else if is_loading {
                     button::standard("Today")
                 } else {
-                    button::standard("Today").on_press(Message::SelectDisplayMode(DisplayMode::Today))
+                    button::standard("Today")
+                        .on_press(Message::SelectDisplayMode(DisplayMode::Today))
                 };
-                
+
                 let month_button = if self.state.display_mode == DisplayMode::Month {
                     button::suggested("Month")
                 } else if is_loading {
                     button::standard("Month")
                 } else {
-                    button::standard("Month").on_press(Message::SelectDisplayMode(DisplayMode::Month))
+                    button::standard("Month")
+                        .on_press(Message::SelectDisplayMode(DisplayMode::Month))
                 };
-                
+
                 let alltime_button = if self.state.display_mode == DisplayMode::AllTime {
                     button::suggested("All Time")
                 } else if is_loading {
                     button::standard("All Time")
                 } else {
-                    button::standard("All Time").on_press(Message::SelectDisplayMode(DisplayMode::AllTime))
+                    button::standard("All Time")
+                        .on_press(Message::SelectDisplayMode(DisplayMode::AllTime))
                 };
-                
+
                 // Create tab row
                 let tabs = row()
                     .push(today_button)
                     .push(month_button)
                     .push(alltime_button)
                     .spacing(8);
-                
+
                 column()
                     .push(text(title).size(20))
                     .push(text("").size(4))
                     .push(tabs)
                     .push(text("").size(8))
-                    .push(row()
-                        .push(text("Total Cost: ").size(14))
-                        .push(text(format_cost(usage.total_cost)).size(14))
-                        .spacing(5)
+                    .push(
+                        row()
+                            .push(text("Total Cost: ").size(14))
+                            .push(text(format_cost(usage.total_cost)).size(14))
+                            .spacing(5),
                     )
-                    .push(row()
-                        .push(text("Interactions: ").size(14))
-                        .push(text(format_number(usage.interaction_count as u64)).size(14))
-                        .spacing(5)
+                    .push(
+                        row()
+                            .push(text("Interactions: ").size(14))
+                            .push(text(format_number(usage.interaction_count as u64)).size(14))
+                            .spacing(5),
                     )
-                    .push(row()
-                        .push(text("Input Tokens: ").size(14))
-                        .push(text(format_number(usage.total_input_tokens)).size(14))
-                        .spacing(5)
+                    .push(
+                        row()
+                            .push(text("Input Tokens: ").size(14))
+                            .push(text(format_number(usage.total_input_tokens)).size(14))
+                            .spacing(5),
                     )
-                    .push(row()
-                        .push(text("Output Tokens: ").size(14))
-                        .push(text(format_number(usage.total_output_tokens)).size(14))
-                        .spacing(5)
+                    .push(
+                        row()
+                            .push(text("Output Tokens: ").size(14))
+                            .push(text(format_number(usage.total_output_tokens)).size(14))
+                            .spacing(5),
                     )
                     .push(text("").size(8))
                     .push(text(format_tooltip(self.state.last_update)).size(12))
@@ -419,42 +435,40 @@ impl OpenCodeMonitorApplet {
             .push(text("").size(8))
             .push(text("Refresh Interval (seconds)").size(14))
             .push(
-                text_input(
-                    "Enter refresh interval",
-                    &self.temp_refresh_interval_str
-                )
-                .on_input(|s| {
-                    s.parse::<u32>()
-                        .map(Message::UpdateRefreshInterval)
-                        .unwrap_or(Message::None)
-                })
+                text_input("Enter refresh interval", &self.temp_refresh_interval_str).on_input(
+                    |s| {
+                        s.parse::<u32>()
+                            .map(Message::UpdateRefreshInterval)
+                            .unwrap_or(Message::None)
+                    },
+                ),
             )
             .push(text("").size(8))
             .push(text("Display Options").size(14))
             .push(
                 checkbox(
                     "Show today's usage next to icon",
-                    self.temp_show_today_usage
+                    self.temp_show_today_usage,
                 )
-                .on_toggle(Message::ToggleShowTodayUsage)
+                .on_toggle(Message::ToggleShowTodayUsage),
             )
             .push(
                 checkbox(
                     "Use raw token values (no K/M suffixes)",
-                    self.temp_use_raw_token_display
+                    self.temp_use_raw_token_display,
                 )
-                .on_toggle(Message::ToggleRawTokenDisplay)
+                .on_toggle(Message::ToggleRawTokenDisplay),
             )
             .spacing(10)
             .padding(20);
-        
+
         // Show error if present (red/critical style)
         if let Some(ref err) = self.config_error {
             content = content
                 .push(text("").size(8))
                 .push(text(format!("❌ Error: {}", err)).size(14));
         }
-        
+
         // Show warning if present (yellow/info style)
         if let Some(ref warn) = self.config_warning {
             let warning_text = match warn {
@@ -466,24 +480,24 @@ impl OpenCodeMonitorApplet {
                 .push(text("").size(8))
                 .push(text(warning_text).size(14));
         }
-        
+
         // Add action buttons
-        content = content
-            .push(text("").size(12))
-            .push(
-                row()
-                    .push(button::standard("Cancel").on_press(Message::CloseSettings))
-                    .push(button::suggested("Save").on_press(Message::SaveConfig))
-                    .spacing(12)
-            );
-        
+        content = content.push(text("").size(12)).push(
+            row()
+                .push(button::standard("Cancel").on_press(Message::CloseSettings))
+                .push(button::suggested("Save").on_press(Message::SaveConfig))
+                .spacing(12),
+        );
+
         scrollable(content).into()
     }
 
     /// Create the panel button content layout
     fn panel_button_content(&self) -> Element<'_, Message> {
-        use crate::ui::formatters::{format_panel_display_detailed, format_panel_display_detailed_raw};
-        
+        use crate::ui::formatters::{
+            format_panel_display_detailed, format_panel_display_detailed_raw,
+        };
+
         // If show_today_usage is enabled and we have today's data, show icon + detailed metrics
         if self.state.config.show_today_usage {
             if let Some(today_usage) = &self.state.today_usage {
@@ -501,11 +515,9 @@ impl OpenCodeMonitorApplet {
                     .into();
             }
         }
-        
+
         // Default: just show icon
-        icon::from_name(self.get_state_icon())
-            .size(16)
-            .into()
+        icon::from_name(self.get_state_icon()).size(16).into()
     }
 }
 
@@ -526,18 +538,19 @@ impl Application for OpenCodeMonitorApplet {
 
     fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
         let reader = if let Some(ref path) = flags.storage_path {
-            OpenCodeUsageReader::new_with_path(path.to_str().unwrap_or("")).expect("Failed to create OpenCode reader")
+            OpenCodeUsageReader::new_with_path(path.to_str().unwrap_or(""))
+                .expect("Failed to create OpenCode reader")
         } else {
             OpenCodeUsageReader::new().expect("Failed to create OpenCode reader")
         };
-        
+
         let temp_refresh_interval = flags.refresh_interval_seconds;
         let temp_show_today_usage = flags.show_today_usage;
         let temp_use_raw_token_display = flags.use_raw_token_display;
-        
+
         // Create watch channel for refresh interval updates
         let (refresh_interval_tx, _rx) = watch::channel(flags.refresh_interval_seconds);
-        
+
         let applet = Self {
             core,
             state: AppState::new(flags),
@@ -554,7 +567,10 @@ impl Application for OpenCodeMonitorApplet {
         };
 
         eprintln!("[init] Application initialized, triggering initial FetchMetrics");
-        (applet, Task::done(cosmic::Action::App(Message::FetchMetrics)))
+        (
+            applet,
+            Task::done(cosmic::Action::App(Message::FetchMetrics)),
+        )
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
@@ -574,7 +590,7 @@ impl Application for OpenCodeMonitorApplet {
         // Create a subscription that ticks based on refresh_interval_seconds
         // and dynamically updates when the interval changes
         let mut refresh_interval_rx = self.refresh_interval_tx.subscribe();
-        
+
         Subscription::run_with_id(
             "opencode-refresh-sub",
             stream::channel(1, move |mut output| async move {
@@ -583,7 +599,7 @@ impl Application for OpenCodeMonitorApplet {
                 let mut interval_seconds: u64 = 60; // Default
                 let mut timer = time::interval(std::time::Duration::from_secs(interval_seconds));
                 timer.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
-                
+
                 loop {
                     tokio::select! {
                         _ = timer.tick() => {
@@ -591,17 +607,17 @@ impl Application for OpenCodeMonitorApplet {
                             if let Err(err) = output.send(Message::Tick).await {
                                 eprintln!("[Subscription] Failed sending tick: {:?}", err);
                             }
-                            
+
                             #[cfg(not(debug_assertions))]
                             let _ = output.send(Message::Tick).await;
                         },
                         // Update timer if the user changes refresh interval
                         Ok(()) = refresh_interval_rx.changed() => {
                             interval_seconds = *refresh_interval_rx.borrow_and_update() as u64;
-                            
+
                             #[cfg(debug_assertions)]
                             eprintln!("[Subscription] Refresh interval changed to {} seconds", interval_seconds);
-                            
+
                             let period = time::Duration::from_secs(interval_seconds);
                             let start = time::Instant::now() + period;
                             timer = time::interval_at(start, period);
@@ -624,13 +640,13 @@ impl Application for OpenCodeMonitorApplet {
             } else {
                 self.metrics_popup_view()
             };
-            
+
             let (max_w, max_h) = if self.settings_dialog_open {
                 (600.0, 600.0)
             } else {
                 (600.0, 500.0)
             };
-            
+
             self.core
                 .applet
                 .popup_container(content)
@@ -697,9 +713,13 @@ mod tests {
         let config = create_mock_config();
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             let usage = create_mock_usage_metrics();
-            
-            let _ = applet.handle_message(Message::MetricsFetched(Ok((usage.clone(), None, None))));
-            
+
+            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
+                usage.clone(),
+                None,
+                None,
+            )))));
+
             assert!(matches!(applet.state.panel_state, PanelState::Success(_)));
             assert!(applet.state.last_update.is_some());
         }
@@ -710,9 +730,9 @@ mod tests {
         let config = create_mock_config();
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             let error = "Test error".to_string();
-            
-            let _ = applet.handle_message(Message::MetricsFetched(Err(error)));
-            
+
+            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Err(error))));
+
             assert!(matches!(applet.state.panel_state, PanelState::Error(_)));
         }
     }
@@ -724,11 +744,11 @@ mod tests {
             // Open settings
             let _ = applet.handle_message(Message::OpenSettings);
             assert!(applet.settings_dialog_open);
-            
+
             // Update refresh interval
             let _ = applet.handle_message(Message::UpdateRefreshInterval(1800));
             assert_eq!(applet.temp_refresh_interval, 1800);
-            
+
             // Close settings
             let _ = applet.handle_message(Message::CloseSettings);
             assert!(!applet.settings_dialog_open);
@@ -738,20 +758,20 @@ mod tests {
     #[test]
     fn test_select_display_mode() {
         use crate::ui::state::DisplayMode;
-        
+
         let config = create_mock_config();
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Should start with Today mode
             assert_eq!(applet.state.display_mode, DisplayMode::Today);
-            
+
             // Select Month mode
             let _ = applet.handle_message(Message::SelectDisplayMode(DisplayMode::Month));
             assert_eq!(applet.state.display_mode, DisplayMode::Month);
-            
+
             // Select AllTime mode
             let _ = applet.handle_message(Message::SelectDisplayMode(DisplayMode::AllTime));
             assert_eq!(applet.state.display_mode, DisplayMode::AllTime);
-            
+
             // Select Today mode again
             let _ = applet.handle_message(Message::SelectDisplayMode(DisplayMode::Today));
             assert_eq!(applet.state.display_mode, DisplayMode::Today);
@@ -765,15 +785,15 @@ mod tests {
             // Should start disabled
             assert!(!applet.state.config.show_today_usage);
             assert!(!applet.temp_show_today_usage);
-            
+
             // Open settings
             let _ = applet.handle_message(Message::OpenSettings);
             assert!(applet.settings_dialog_open);
-            
+
             // Toggle show_today_usage
             let _ = applet.handle_message(Message::ToggleShowTodayUsage(true));
             assert!(applet.temp_show_today_usage);
-            
+
             // Save config
             let _ = applet.handle_message(Message::SaveConfig);
             assert!(applet.state.config.show_today_usage);
@@ -789,12 +809,12 @@ mod tests {
             let usage = create_mock_usage_metrics();
             applet.state.update_today_usage(usage);
             assert!(applet.state.today_usage.is_some());
-            
+
             // Open settings and toggle off
             let _ = applet.handle_message(Message::OpenSettings);
             let _ = applet.handle_message(Message::ToggleShowTodayUsage(false));
             let _ = applet.handle_message(Message::SaveConfig);
-            
+
             // Cache should be cleared
             assert!(applet.state.today_usage.is_none());
         }
@@ -806,17 +826,17 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Should start disabled
             assert!(!applet.state.config.show_today_usage);
-            
+
             // Open settings and enable show_today_usage
             let _ = applet.handle_message(Message::OpenSettings);
             let _ = applet.handle_message(Message::ToggleShowTodayUsage(true));
-            
+
             // Save config should return a Task that triggers FetchMetrics
-            let task = applet.handle_message(Message::SaveConfig);
-            
+            let _task = applet.handle_message(Message::SaveConfig);
+
             // Verify config was updated
             assert!(applet.state.config.show_today_usage);
-            
+
             // The task should not be Task::none() - it should trigger a fetch
             // We can't directly test Task equality, but we can verify the behavior
             // by checking that settings closed successfully
@@ -830,14 +850,14 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Should start with raw display disabled
             assert!(!applet.state.config.use_raw_token_display);
-            
+
             // Open settings and enable raw token display
             let _ = applet.handle_message(Message::OpenSettings);
             let _ = applet.handle_message(Message::ToggleRawTokenDisplay(true));
-            
+
             // Save config
             let _ = applet.handle_message(Message::SaveConfig);
-            
+
             // Verify config was updated and settings closed
             assert!(applet.state.config.use_raw_token_display);
             assert!(!applet.settings_dialog_open);
@@ -850,12 +870,16 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Initially no month cache
             assert!(applet.state.month_usage.is_none());
-            
+
             // Simulate successful fetch with month data
             let main_usage = create_mock_usage_metrics();
             let month_usage = create_mock_usage_metrics();
-            let _ = applet.handle_message(Message::MetricsFetched(Ok((main_usage, None, Some(month_usage.clone())))));
-            
+            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
+                main_usage,
+                None,
+                Some(month_usage.clone()),
+            )))));
+
             // Month cache should be updated
             assert!(applet.state.month_usage.is_some());
             assert_eq!(applet.state.month_usage.unwrap(), month_usage);
@@ -869,11 +893,15 @@ mod tests {
             // Switch to Month mode
             let _ = applet.handle_message(Message::SelectDisplayMode(DisplayMode::Month));
             assert_eq!(applet.state.display_mode, DisplayMode::Month);
-            
+
             // Simulate successful month data fetch
             let month_usage = create_mock_usage_metrics();
-            let _ = applet.handle_message(Message::MetricsFetched(Ok((month_usage.clone(), None, None))));
-            
+            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
+                month_usage.clone(),
+                None,
+                None,
+            )))));
+
             // Month cache should be populated when in Month mode
             assert!(applet.state.month_usage.is_some());
             assert_eq!(applet.state.month_usage.unwrap(), month_usage);
@@ -888,20 +916,24 @@ mod tests {
             let all_time_usage = create_mock_usage_metrics();
             let mut month_usage = create_mock_usage_metrics();
             month_usage.total_cost = 5.0; // Different value to distinguish
-            
-            let _ = applet.handle_message(Message::MetricsFetched(Ok((all_time_usage, None, Some(month_usage.clone())))));
+
+            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
+                all_time_usage,
+                None,
+                Some(month_usage.clone()),
+            )))));
             assert!(applet.state.month_usage.is_some());
-            
+
             // Switch to Today mode
             let _ = applet.handle_message(Message::SelectDisplayMode(DisplayMode::Today));
-            
+
             // Month cache should still be preserved
             assert!(applet.state.month_usage.is_some());
             assert_eq!(applet.state.month_usage.as_ref().unwrap().total_cost, 5.0);
-            
+
             // Switch to Month mode
             let _ = applet.handle_message(Message::SelectDisplayMode(DisplayMode::Month));
-            
+
             // Month cache should still be preserved
             assert!(applet.state.month_usage.is_some());
             assert_eq!(applet.state.month_usage.as_ref().unwrap().total_cost, 5.0);
@@ -916,16 +948,24 @@ mod tests {
             let all_time_usage = create_mock_usage_metrics();
             let mut initial_month = create_mock_usage_metrics();
             initial_month.total_cost = 5.0;
-            
-            let _ = applet.handle_message(Message::MetricsFetched(Ok((all_time_usage.clone(), None, Some(initial_month.clone())))));
+
+            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
+                all_time_usage.clone(),
+                None,
+                Some(initial_month.clone()),
+            )))));
             assert_eq!(applet.state.month_usage.as_ref().unwrap().total_cost, 5.0);
-            
+
             // Second fetch with updated month data
             let mut updated_month = create_mock_usage_metrics();
             updated_month.total_cost = 10.0;
-            
-            let _ = applet.handle_message(Message::MetricsFetched(Ok((all_time_usage, None, Some(updated_month)))));
-            
+
+            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
+                all_time_usage,
+                None,
+                Some(updated_month),
+            )))));
+
             // Month cache should be updated
             assert_eq!(applet.state.month_usage.as_ref().unwrap().total_cost, 10.0);
         }
@@ -937,17 +977,18 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Simulate successful initial fetch
             let usage = create_mock_usage_metrics();
-            let _ = applet.handle_message(Message::MetricsFetched(Ok((usage, None, None))));
-            
+            let _ =
+                applet.handle_message(Message::MetricsFetched(Box::new(Ok((usage, None, None)))));
+
             // Manually set last_update to old time to trigger refresh
             applet.state.last_update = Some(Utc::now() - chrono::Duration::seconds(1000));
-            
+
             // Tick should trigger fetch since needs_refresh() returns true
             assert!(applet.state.needs_refresh());
-            
+
             // Handle Tick message - should trigger FetchMetrics
-            let task = applet.handle_message(Message::Tick);
-            
+            let _task = applet.handle_message(Message::Tick);
+
             // We can't directly inspect Task contents, but we can verify state didn't change unexpectedly
             assert!(applet.state.needs_refresh());
         }
@@ -959,14 +1000,15 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Simulate recent successful fetch
             let usage = create_mock_usage_metrics();
-            let _ = applet.handle_message(Message::MetricsFetched(Ok((usage, None, None))));
-            
+            let _ =
+                applet.handle_message(Message::MetricsFetched(Box::new(Ok((usage, None, None)))));
+
             // last_update should be recent (just set by update_success)
             assert!(!applet.state.needs_refresh());
-            
+
             // Handle Tick message - should NOT trigger fetch
             let _task = applet.handle_message(Message::Tick);
-            
+
             // Verify refresh is still not needed
             assert!(!applet.state.needs_refresh());
         }
@@ -975,7 +1017,7 @@ mod tests {
     #[test]
     fn test_subscription_method_exists() {
         use cosmic::Application;
-        
+
         let config = create_mock_config();
         if let Ok(applet) = OpenCodeMonitorApplet::new(config) {
             // Call subscription to ensure it's implemented
@@ -990,20 +1032,20 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Initial refresh interval
             assert_eq!(applet.state.config.refresh_interval_seconds, 60);
-            
+
             // Create a receiver before the change to verify notification
             let mut rx = applet.refresh_interval_tx.subscribe();
             assert_eq!(*rx.borrow(), 60);
-            
+
             // Update temp settings
             applet.temp_refresh_interval = 120;
-            
+
             // Save config - this should update the watch channel
             let _task = applet.handle_message(Message::SaveConfig);
-            
+
             // After SaveConfig, verify the config was updated
             assert_eq!(applet.state.config.refresh_interval_seconds, 120);
-            
+
             // Verify the receiver got notified
             assert!(rx.has_changed().unwrap());
             assert_eq!(*rx.borrow_and_update(), 120);
@@ -1016,14 +1058,14 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Create a receiver to simulate what the subscription does
             let mut rx = applet.refresh_interval_tx.subscribe();
-            
+
             // Initial value
             assert_eq!(*rx.borrow(), 60);
-            
+
             // Change refresh interval
             applet.temp_refresh_interval = 300;
             let _task = applet.handle_message(Message::SaveConfig);
-            
+
             // The watch channel should notify subscribers
             assert!(rx.has_changed().unwrap());
             assert_eq!(*rx.borrow_and_update(), 300);

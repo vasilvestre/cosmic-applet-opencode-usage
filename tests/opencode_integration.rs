@@ -1,10 +1,10 @@
 use cosmic_applet_opencode_usage::core::opencode::OpenCodeUsageReader;
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 use tempfile::TempDir;
 
 /// Helper function to create a realistic OpenCode usage JSON file
-fn create_usage_file(dir: &PathBuf, filename: &str, input_tokens: u64, output_tokens: u64, cost: f64) {
+fn create_usage_file(dir: &Path, filename: &str, input_tokens: u64, output_tokens: u64, cost: f64) {
     let content = format!(
         r#"{{
   "id": "prt_{}",
@@ -32,7 +32,7 @@ fn create_usage_file(dir: &PathBuf, filename: &str, input_tokens: u64, output_to
 
 /// Helper function to create a usage file with cache data
 fn create_usage_file_with_cache(
-    dir: &PathBuf,
+    dir: &Path,
     filename: &str,
     input_tokens: u64,
     output_tokens: u64,
@@ -68,7 +68,7 @@ fn create_usage_file_with_cache(
 }
 
 /// Helper function to create a usage file without tokens (should be skipped)
-fn create_usage_file_without_tokens(dir: &PathBuf, filename: &str) {
+fn create_usage_file_without_tokens(dir: &Path, filename: &str) {
     let content = r#"{
   "id": "prt_test_no_tokens",
   "messageID": "msg_test",
@@ -134,7 +134,10 @@ fn test_integration_realistic_opencode_structure() {
         metrics.total_cache_write_tokens, 3800,
         "Cache creation tokens mismatch"
     );
-    assert_eq!(metrics.total_cache_read_tokens, 2700, "Cache read tokens mismatch");
+    assert_eq!(
+        metrics.total_cache_read_tokens, 2700,
+        "Cache read tokens mismatch"
+    );
     assert_eq!(metrics.interaction_count, 6, "Interactions count mismatch");
 
     // Cost comparison with floating point tolerance
@@ -171,7 +174,13 @@ fn test_integration_nested_directory_structure() {
     fs::create_dir_all(&deep_path).expect("Failed to create nested structure");
 
     // Add usage files at different levels
-    create_usage_file(&storage_path.join("level1"), "usage-l1.json", 100, 50, 0.003);
+    create_usage_file(
+        &storage_path.join("level1"),
+        "usage-l1.json",
+        100,
+        50,
+        0.003,
+    );
     create_usage_file(
         &storage_path.join("level1/level2"),
         "usage-l2.json",
@@ -219,7 +228,9 @@ fn test_integration_with_invalid_json_files() {
         .expect("Failed to create reader");
 
     // Should succeed despite invalid files
-    let metrics = reader.get_usage().expect("Failed to get usage despite invalid files");
+    let metrics = reader
+        .get_usage()
+        .expect("Failed to get usage despite invalid files");
 
     // Should only count valid files
     assert_eq!(metrics.total_input_tokens, 2500);

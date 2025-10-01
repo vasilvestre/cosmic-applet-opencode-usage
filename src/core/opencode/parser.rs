@@ -37,7 +37,7 @@ pub struct UsagePart {
 pub enum ParserError {
     #[error("Failed to read file: {0}")]
     FileReadError(#[from] std::io::Error),
-    
+
     #[error("Invalid JSON: {0}")]
     JsonError(#[from] serde_json::Error),
 }
@@ -50,15 +50,15 @@ impl UsageParser {
     /// Returns None if the part doesn't contain token data
     pub fn parse_json(content: &str) -> Result<Option<UsagePart>, ParserError> {
         let part: UsagePart = serde_json::from_str(content)?;
-        
+
         // Return None if the part doesn't have token data
         if part.tokens.is_none() {
             return Ok(None);
         }
-        
+
         Ok(Some(part))
     }
-    
+
     /// Parse a file into a UsagePart
     /// Returns None if the part doesn't contain token data
     pub fn parse_file(path: &Path) -> Result<Option<UsagePart>, ParserError> {
@@ -92,13 +92,13 @@ mod tests {
         }"#;
 
         let part: UsagePart = serde_json::from_str(json).expect("Should deserialize");
-        
+
         assert_eq!(part.id, "prt_99ab34631001IcYXFyeEPSdTZM");
         assert_eq!(part.message_id, "msg_99ab2e8b7001ifpeClFcxb6yzU");
         assert_eq!(part.session_id, "ses_6654d2741ffet36HoSwYBXgCnH");
         assert_eq!(part.event_type, "step-finish");
         assert_eq!(part.cost, 0.0);
-        
+
         let tokens = part.tokens.expect("Should have tokens");
         assert_eq!(tokens.input, 26535);
         assert_eq!(tokens.output, 1322);
@@ -128,7 +128,7 @@ mod tests {
         }"#;
 
         let part: UsagePart = serde_json::from_str(json).expect("Should deserialize");
-        
+
         let tokens = part.tokens.expect("Should have tokens");
         assert_eq!(tokens.cache.read, 24781);
         assert_eq!(part.cost, 0.5);
@@ -161,17 +161,14 @@ mod tests {
                 input: 100,
                 output: 50,
                 reasoning: 10,
-                cache: CacheUsage {
-                    write: 5,
-                    read: 15,
-                },
+                cache: CacheUsage { write: 5, read: 15 },
             }),
             cost: 0.25,
         };
 
         let json = serde_json::to_string(&original).expect("Should serialize");
         let deserialized: UsagePart = serde_json::from_str(&json).expect("Should deserialize");
-        
+
         assert_eq!(original, deserialized);
     }
 
@@ -197,7 +194,7 @@ mod tests {
 
         let result = UsageParser::parse_json(json).expect("Should parse successfully");
         let part = result.expect("Should have a UsagePart");
-        
+
         assert_eq!(part.id, "prt_test");
         assert!(part.tokens.is_some());
     }
@@ -214,7 +211,10 @@ mod tests {
         }"#;
 
         let result = UsageParser::parse_json(json).expect("Should parse successfully");
-        assert!(result.is_none(), "Should return None for parts without tokens");
+        assert!(
+            result.is_none(),
+            "Should return None for parts without tokens"
+        );
     }
 
     // Test 7: Parse malformed JSON - should return error
@@ -258,7 +258,7 @@ mod tests {
 
         let result = UsageParser::parse_json(json).expect("Should parse successfully");
         let part = result.expect("Should have a UsagePart even with zero tokens");
-        
+
         let tokens = part.tokens.expect("Should have tokens struct");
         assert_eq!(tokens.input, 0);
         assert_eq!(tokens.output, 0);
@@ -267,12 +267,12 @@ mod tests {
     // Test 10: Parse file with valid JSON
     #[test]
     fn test_parse_file_valid() {
-        use std::io::Write;
         use std::fs::File;
-        
+        use std::io::Write;
+
         let temp_dir = std::env::temp_dir();
         let test_file = temp_dir.join("test_usage_part.json");
-        
+
         let json = r#"{
             "id": "prt_test_file",
             "messageID": "msg_test",
@@ -289,19 +289,20 @@ mod tests {
             },
             "cost": 0.1
         }"#;
-        
+
         // Write test file
         let mut file = File::create(&test_file).expect("Should create test file");
-        file.write_all(json.as_bytes()).expect("Should write test data");
+        file.write_all(json.as_bytes())
+            .expect("Should write test data");
         drop(file);
-        
+
         // Parse file
         let result = UsageParser::parse_file(&test_file).expect("Should parse file");
         let part = result.expect("Should have a UsagePart");
-        
+
         assert_eq!(part.id, "prt_test_file");
         assert!(part.tokens.is_some());
-        
+
         // Cleanup
         std::fs::remove_file(test_file).ok();
     }
@@ -310,7 +311,7 @@ mod tests {
     #[test]
     fn test_parse_file_nonexistent() {
         let nonexistent_path = std::path::Path::new("/tmp/nonexistent_file_xyz123.json");
-        
+
         let result = UsageParser::parse_file(nonexistent_path);
         assert!(result.is_err(), "Should return error for nonexistent file");
         assert!(matches!(result.unwrap_err(), ParserError::FileReadError(_)));
@@ -339,19 +340,19 @@ mod tests {
 
         let result = UsageParser::parse_json(json).expect("Should parse real OpenCode data");
         let part = result.expect("Should have a UsagePart");
-        
+
         assert_eq!(part.id, "prt_99ab34631001IcYXFyeEPSdTZM");
         assert_eq!(part.message_id, "msg_99ab2e8b7001ifpeClFcxb6yzU");
         assert_eq!(part.session_id, "ses_6654d2741ffet36HoSwYBXgCnH");
         assert_eq!(part.event_type, "step-finish");
-        
+
         let tokens = part.tokens.expect("Should have tokens");
         assert_eq!(tokens.input, 26535);
         assert_eq!(tokens.output, 1322);
         assert_eq!(tokens.reasoning, 0);
         assert_eq!(tokens.cache.write, 0);
         assert_eq!(tokens.cache.read, 0);
-        
+
         assert_eq!(part.cost, 0.0);
     }
 }

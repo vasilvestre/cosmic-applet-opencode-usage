@@ -1,9 +1,9 @@
-use std::time::Instant;
 use cosmic_applet_opencode_usage::core::opencode::OpenCodeUsageReader;
+use std::time::Instant;
 
 fn main() {
     println!("=== OpenCode Usage Performance Test ===\n");
-    
+
     // Create reader with real OpenCode storage
     let mut reader = match OpenCodeUsageReader::new() {
         Ok(r) => r,
@@ -12,7 +12,7 @@ fn main() {
             return;
         }
     };
-    
+
     // Test 1: All-time usage (scans all 69K+ files)
     println!("Test 1: All-time usage (scanning all files)");
     let start = Instant::now();
@@ -28,7 +28,7 @@ fn main() {
         }
     }
     println!();
-    
+
     // Test 2: Today's usage (with new optimized scan_modified_since)
     println!("Test 2: Today's usage (optimized filtering)");
     let start = Instant::now();
@@ -44,7 +44,7 @@ fn main() {
         }
     }
     println!();
-    
+
     // Test 3: Rapid switching (should use cache)
     println!("Test 3: Switching back to all-time (should use cache)");
     let start = Instant::now();
@@ -59,7 +59,7 @@ fn main() {
         }
     }
     println!();
-    
+
     // Test 4: Switch back to today (rapid switching)
     println!("Test 4: Switching back to today (rapid switch test)");
     let start = Instant::now();
@@ -73,6 +73,6 @@ fn main() {
             println!("  ✗ Error: {}", e);
         }
     }
-    
+
     println!("\n=== Performance Test Complete ===");
 }

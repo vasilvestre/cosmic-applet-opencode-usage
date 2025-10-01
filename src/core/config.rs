@@ -67,21 +67,24 @@ impl AppConfig {
     /// Loads configuration with a custom app ID (useful for testing)
     fn load_with_id(app_id: &str) -> Result<Self, ConfigError> {
         use cosmic::cosmic_config::{Config, ConfigGet};
-        
+
         // Try to open config, if it fails, return defaults
         let config = Config::new(app_id, CONFIG_VERSION)
             .map_err(|e| ConfigError::LoadError(format!("Failed to open config: {}", e)))?;
-        
+
         // Load each field individually, using defaults for missing values
         let default = Self::default();
-        
+
         Ok(Self {
             storage_path: config.get("storage_path").unwrap_or(default.storage_path),
-            refresh_interval_seconds: config.get("refresh_interval_seconds")
+            refresh_interval_seconds: config
+                .get("refresh_interval_seconds")
                 .unwrap_or(default.refresh_interval_seconds),
-            show_today_usage: config.get("show_today_usage")
+            show_today_usage: config
+                .get("show_today_usage")
                 .unwrap_or(default.show_today_usage),
-            use_raw_token_display: config.get("use_raw_token_display")
+            use_raw_token_display: config
+                .get("use_raw_token_display")
                 .unwrap_or(default.use_raw_token_display),
         })
     }
@@ -94,20 +97,30 @@ impl AppConfig {
     /// Saves configuration with a custom app ID (useful for testing)
     fn save_with_id(&self, app_id: &str) -> Result<(), ConfigError> {
         use cosmic::cosmic_config::{Config, ConfigSet};
-        
+
         let config = Config::new(app_id, CONFIG_VERSION)
             .map_err(|e| ConfigError::SaveError(format!("Failed to open config: {}", e)))?;
-        
+
         // Save each field individually
-        config.set("storage_path", &self.storage_path)
+        config
+            .set("storage_path", &self.storage_path)
             .map_err(|e| ConfigError::SaveError(format!("Failed to save storage_path: {}", e)))?;
-        config.set("refresh_interval_seconds", self.refresh_interval_seconds)
-            .map_err(|e| ConfigError::SaveError(format!("Failed to save refresh_interval_seconds: {}", e)))?;
-        config.set("show_today_usage", self.show_today_usage)
-            .map_err(|e| ConfigError::SaveError(format!("Failed to save show_today_usage: {}", e)))?;
-        config.set("use_raw_token_display", self.use_raw_token_display)
-            .map_err(|e| ConfigError::SaveError(format!("Failed to save use_raw_token_display: {}", e)))?;
-        
+        config
+            .set("refresh_interval_seconds", self.refresh_interval_seconds)
+            .map_err(|e| {
+                ConfigError::SaveError(format!("Failed to save refresh_interval_seconds: {}", e))
+            })?;
+        config
+            .set("show_today_usage", self.show_today_usage)
+            .map_err(|e| {
+                ConfigError::SaveError(format!("Failed to save show_today_usage: {}", e))
+            })?;
+        config
+            .set("use_raw_token_display", self.use_raw_token_display)
+            .map_err(|e| {
+                ConfigError::SaveError(format!("Failed to save use_raw_token_display: {}", e))
+            })?;
+
         Ok(())
     }
 
@@ -123,12 +136,12 @@ pub fn validate_refresh_interval(interval: u32) -> Result<Option<ConfigWarning>,
     if !(1..=3600).contains(&interval) {
         return Err(ConfigError::InvalidRefreshInterval(interval));
     }
-    
+
     // Warn if interval is very low (< 60 seconds)
     if interval < 60 {
         return Ok(Some(ConfigWarning::LowRefreshInterval(interval)));
     }
-    
+
     Ok(None)
 }
 
@@ -141,8 +154,8 @@ mod tests {
         let config = AppConfig::default();
         assert_eq!(config.storage_path, None);
         assert_eq!(config.refresh_interval_seconds, 60);
-        assert_eq!(config.show_today_usage, true);
-        assert_eq!(config.use_raw_token_display, false);
+        assert!(config.show_today_usage);
+        assert!(!config.use_raw_token_display);
     }
 
     #[test]
@@ -231,7 +244,7 @@ mod tests {
         assert_eq!(validate_refresh_interval(300), Ok(None));
         assert_eq!(validate_refresh_interval(900), Ok(None));
         assert_eq!(validate_refresh_interval(3600), Ok(None));
-        
+
         // Valid intervals with warning (< 60 seconds)
         assert_eq!(
             validate_refresh_interval(1),
@@ -245,7 +258,7 @@ mod tests {
             validate_refresh_interval(59),
             Ok(Some(ConfigWarning::LowRefreshInterval(59)))
         );
-        
+
         // Invalid intervals (out of range)
         assert_eq!(
             validate_refresh_interval(0),
@@ -267,7 +280,7 @@ mod tests {
     #[test]
     fn test_save_config_creates_persistent_storage() {
         let app_id = test_app_id("save_creates");
-        
+
         // Create a non-default config
         let config = AppConfig {
             storage_path: Some(PathBuf::from("/custom/path")),
@@ -284,12 +297,15 @@ mod tests {
     #[test]
     fn test_load_config_returns_defaults_when_no_config_exists() {
         let app_id = test_app_id("load_no_config");
-        
+
         // Load from a fresh config (nothing saved yet)
         let loaded = AppConfig::load_with_id(&app_id);
-        
+
         // Should return default config, not an error
-        assert!(loaded.is_ok(), "load() should succeed even with no saved config");
+        assert!(
+            loaded.is_ok(),
+            "load() should succeed even with no saved config"
+        );
         let config = loaded.unwrap();
         assert_eq!(config, AppConfig::default());
     }
@@ -297,7 +313,7 @@ mod tests {
     #[test]
     fn test_save_then_load_roundtrip() {
         let app_id = test_app_id("roundtrip");
-        
+
         // Create a custom config
         let original = AppConfig {
             storage_path: Some(PathBuf::from("/test/custom/path")),
@@ -319,7 +335,7 @@ mod tests {
     #[test]
     fn test_save_persists_individual_fields() {
         let app_id = test_app_id("individual_fields");
-        
+
         // Save a config with specific values
         let config1 = AppConfig {
             storage_path: None,
@@ -332,7 +348,7 @@ mod tests {
         // Load and verify
         let loaded1 = AppConfig::load_with_id(&app_id).expect("load should succeed");
         assert_eq!(loaded1.refresh_interval_seconds, 600);
-        assert_eq!(loaded1.show_today_usage, true);
+        assert!(loaded1.show_today_usage);
 
         // Change one field and save again
         let config2 = AppConfig {
@@ -346,7 +362,7 @@ mod tests {
         // Load and verify the change
         let loaded2 = AppConfig::load_with_id(&app_id).expect("load should succeed");
         assert_eq!(loaded2.refresh_interval_seconds, 1800);
-        assert_eq!(loaded2.show_today_usage, false);
-        assert_eq!(loaded2.use_raw_token_display, true);
+        assert!(!loaded2.show_today_usage);
+        assert!(loaded2.use_raw_token_display);
     }
 }

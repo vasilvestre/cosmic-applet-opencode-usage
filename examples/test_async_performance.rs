@@ -3,11 +3,11 @@ use std::time::Instant;
 
 fn main() {
     println!("Testing async performance with actual OpenCode storage...\n");
-    
+
     match OpenCodeUsageReader::new() {
         Ok(mut reader) => {
             println!("✓ Created reader");
-            
+
             // Test 1: First all-time read (cold cache)
             println!("\n--- Test 1: First all-time read (cold cache) ---");
             let start = Instant::now();
@@ -20,7 +20,7 @@ fn main() {
                 }
                 Err(e) => println!("✗ Error: {}", e),
             }
-            
+
             // Test 2: Today's usage
             println!("\n--- Test 2: Today's usage ---");
             let start = Instant::now();
@@ -33,7 +33,7 @@ fn main() {
                 }
                 Err(e) => println!("✗ Error: {}", e),
             }
-            
+
             // Test 3: Switch back to all-time (should use cache)
             println!("\n--- Test 3: All-time again (cached) ---");
             let start = Instant::now();
@@ -46,7 +46,7 @@ fn main() {
                 }
                 Err(e) => println!("✗ Error: {}", e),
             }
-            
+
             // Test 4: Multiple rapid switches
             println!("\n--- Test 4: Rapid switching (10 iterations) ---");
             let start = Instant::now();
@@ -60,7 +60,7 @@ fn main() {
             let duration = start.elapsed();
             println!("✓ Total duration for 10 switches: {:?}", duration);
             println!("  Average per switch: {:?}", duration / 10);
-            
+
             println!("\n--- Summary ---");
             println!("The async implementation should prevent UI freezing by:");
             println!("1. Moving directory scanning to a background thread");

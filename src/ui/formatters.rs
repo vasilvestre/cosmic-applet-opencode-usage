@@ -60,7 +60,7 @@ pub fn format_tokens_raw(tokens: u64) -> String {
 /// Uses the system locale to determine the appropriate separator
 pub fn format_number_locale(n: u64) -> String {
     use num_format::{Locale, ToFormattedString};
-    
+
     // Try to get system locale, fallback to US English if unavailable
     match num_format::SystemLocale::default() {
         Ok(locale) => n.to_formatted_string(&locale),
@@ -83,7 +83,10 @@ pub fn format_panel_display_detailed(usage: &UsageMetrics) -> String {
     let interactions = usage.interaction_count;
     let input_tokens = format_tokens_compact(usage.total_input_tokens);
     let output_tokens = format_tokens_compact(usage.total_output_tokens);
-    format!("{} | {}x | {}/{}", cost, interactions, input_tokens, output_tokens)
+    format!(
+        "{} | {}x | {}/{}",
+        cost, interactions, input_tokens, output_tokens
+    )
 }
 
 /// Format comprehensive panel display with raw token values (e.g., "$1.2 | 3x | 10000/5000")
@@ -93,7 +96,10 @@ pub fn format_panel_display_detailed_raw(usage: &UsageMetrics) -> String {
     let interactions = usage.interaction_count;
     let input_tokens = format_tokens_raw(usage.total_input_tokens);
     let output_tokens = format_tokens_raw(usage.total_output_tokens);
-    format!("{} | {}x | {}/{}", cost, interactions, input_tokens, output_tokens)
+    format!(
+        "{} | {}x | {}/{}",
+        cost, interactions, input_tokens, output_tokens
+    )
 }
 
 /// Get the primary metric to display (total cost)
@@ -132,14 +138,18 @@ mod tests {
     #[test]
     fn test_format_number_thousands() {
         let result = format_number(1234);
-        eprintln!("DEBUG: format_number(1234) = '{}' (len={})", result, result.len());
+        eprintln!(
+            "DEBUG: format_number(1234) = '{}' (len={})",
+            result,
+            result.len()
+        );
         // The length will depend on locale:
         // - English: "1,234" (5 chars: comma separator)
         // - French: "1 234" (5 chars: space separator - actually might be non-breaking space = 3 bytes)
         // - German: "1.234" (5 chars: period separator)
         // We just verify it has the right digits
         assert!(result.len() >= 4); // At least the 4 digits
-        // Should contain the digits 1, 2, 3, 4
+                                    // Should contain the digits 1, 2, 3, 4
         assert!(result.contains('1'));
         assert!(result.contains('2'));
         assert!(result.contains('3'));
@@ -149,11 +159,15 @@ mod tests {
     #[test]
     fn test_format_number_millions() {
         let result = format_number(1234567);
-        eprintln!("DEBUG: format_number(1234567) = '{}' (len={})", result, result.len());
+        eprintln!(
+            "DEBUG: format_number(1234567) = '{}' (len={})",
+            result,
+            result.len()
+        );
         // Length depends on locale and number of separators
         // We just verify the digits are all present
         assert!(result.len() >= 7); // At least the 7 digits
-        // Removing non-digits should give us the original number
+                                    // Removing non-digits should give us the original number
         let digits_only: String = result.chars().filter(|c| c.is_ascii_digit()).collect();
         assert_eq!(digits_only, "1234567");
     }
@@ -318,7 +332,10 @@ mod tests {
             interaction_count: 1234,
             timestamp: std::time::SystemTime::now(),
         };
-        assert_eq!(format_panel_display_detailed(&usage), "$126 | 1234x | 25M/10M");
+        assert_eq!(
+            format_panel_display_detailed(&usage),
+            "$126 | 1234x | 25M/10M"
+        );
     }
 
     #[test]
@@ -333,21 +350,51 @@ mod tests {
         let result_1k = format_tokens_raw(1_000);
         let result_10k = format_tokens_raw(10_500);
         let result_999k = format_tokens_raw(999_999);
-        
+
         // Verify the numeric content is preserved
-        assert_eq!(result_1k.chars().filter(|c| c.is_ascii_digit()).collect::<String>(), "1000");
-        assert_eq!(result_10k.chars().filter(|c| c.is_ascii_digit()).collect::<String>(), "10500");
-        assert_eq!(result_999k.chars().filter(|c| c.is_ascii_digit()).collect::<String>(), "999999");
+        assert_eq!(
+            result_1k
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>(),
+            "1000"
+        );
+        assert_eq!(
+            result_10k
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>(),
+            "10500"
+        );
+        assert_eq!(
+            result_999k
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>(),
+            "999999"
+        );
     }
 
     #[test]
     fn test_format_tokens_raw_millions() {
         let result_1m = format_tokens_raw(1_000_000);
         let result_25m = format_tokens_raw(25_000_000);
-        
+
         // Verify the numeric content is preserved
-        assert_eq!(result_1m.chars().filter(|c| c.is_ascii_digit()).collect::<String>(), "1000000");
-        assert_eq!(result_25m.chars().filter(|c| c.is_ascii_digit()).collect::<String>(), "25000000");
+        assert_eq!(
+            result_1m
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>(),
+            "1000000"
+        );
+        assert_eq!(
+            result_25m
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>(),
+            "25000000"
+        );
     }
 
     #[test]

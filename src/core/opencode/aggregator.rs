@@ -83,7 +83,7 @@ mod tests {
     #[test]
     fn test_aggregate_single_part() {
         let mut aggregator = UsageAggregator::new();
-        
+
         let part = UsagePart {
             id: "prt_test".to_string(),
             message_id: "msg_test".to_string(),
@@ -93,17 +93,14 @@ mod tests {
                 input: 100,
                 output: 50,
                 reasoning: 10,
-                cache: CacheUsage {
-                    write: 5,
-                    read: 15,
-                },
+                cache: CacheUsage { write: 5, read: 15 },
             }),
             cost: 0.25,
         };
-        
+
         aggregator.add_part(&part);
         let metrics = aggregator.finalize();
-        
+
         assert_eq!(metrics.total_input_tokens, 100);
         assert_eq!(metrics.total_output_tokens, 50);
         assert_eq!(metrics.total_reasoning_tokens, 10);
@@ -117,7 +114,7 @@ mod tests {
     #[test]
     fn test_aggregate_multiple_parts() {
         let mut aggregator = UsageAggregator::new();
-        
+
         let part1 = UsagePart {
             id: "prt_test1".to_string(),
             message_id: "msg_test1".to_string(),
@@ -127,14 +124,11 @@ mod tests {
                 input: 100,
                 output: 50,
                 reasoning: 10,
-                cache: CacheUsage {
-                    write: 5,
-                    read: 15,
-                },
+                cache: CacheUsage { write: 5, read: 15 },
             }),
             cost: 0.25,
         };
-        
+
         let part2 = UsagePart {
             id: "prt_test2".to_string(),
             message_id: "msg_test2".to_string(),
@@ -151,7 +145,7 @@ mod tests {
             }),
             cost: 0.50,
         };
-        
+
         let part3 = UsagePart {
             id: "prt_test3".to_string(),
             message_id: "msg_test3".to_string(),
@@ -161,20 +155,17 @@ mod tests {
                 input: 50,
                 output: 25,
                 reasoning: 5,
-                cache: CacheUsage {
-                    write: 2,
-                    read: 8,
-                },
+                cache: CacheUsage { write: 2, read: 8 },
             }),
             cost: 0.10,
         };
-        
+
         aggregator.add_part(&part1);
         aggregator.add_part(&part2);
         aggregator.add_part(&part3);
-        
+
         let metrics = aggregator.finalize();
-        
+
         assert_eq!(metrics.total_input_tokens, 350);
         assert_eq!(metrics.total_output_tokens, 175);
         assert_eq!(metrics.total_reasoning_tokens, 35);
@@ -189,7 +180,7 @@ mod tests {
     fn test_aggregate_empty() {
         let aggregator = UsageAggregator::new();
         let metrics = aggregator.finalize();
-        
+
         assert_eq!(metrics.total_input_tokens, 0);
         assert_eq!(metrics.total_output_tokens, 0);
         assert_eq!(metrics.total_reasoning_tokens, 0);
@@ -203,7 +194,7 @@ mod tests {
     #[test]
     fn test_aggregate_with_cache_tokens() {
         let mut aggregator = UsageAggregator::new();
-        
+
         // Simulating real OpenCode data with cache reads
         let part = UsagePart {
             id: "prt_99ab34631001IcYXFyeEPSdTZM".to_string(),
@@ -221,10 +212,10 @@ mod tests {
             }),
             cost: 0.0,
         };
-        
+
         aggregator.add_part(&part);
         let metrics = aggregator.finalize();
-        
+
         assert_eq!(metrics.total_input_tokens, 26535);
         assert_eq!(metrics.total_output_tokens, 1322);
         assert_eq!(metrics.total_cache_read_tokens, 24781);
@@ -236,7 +227,7 @@ mod tests {
     #[test]
     fn test_interaction_counting() {
         let mut aggregator = UsageAggregator::new();
-        
+
         // Add 5 parts with tokens
         for i in 0..5 {
             let part = UsagePart {
@@ -248,16 +239,13 @@ mod tests {
                     input: 100,
                     output: 50,
                     reasoning: 0,
-                    cache: CacheUsage {
-                        write: 0,
-                        read: 0,
-                    },
+                    cache: CacheUsage { write: 0, read: 0 },
                 }),
                 cost: 0.1,
             };
             aggregator.add_part(&part);
         }
-        
+
         let metrics = aggregator.finalize();
         assert_eq!(metrics.interaction_count, 5);
     }
@@ -266,7 +254,7 @@ mod tests {
     #[test]
     fn test_cost_accumulation() {
         let mut aggregator = UsageAggregator::new();
-        
+
         let part1 = UsagePart {
             id: "prt_test1".to_string(),
             message_id: "msg_test1".to_string(),
@@ -276,14 +264,11 @@ mod tests {
                 input: 100,
                 output: 50,
                 reasoning: 0,
-                cache: CacheUsage {
-                    write: 0,
-                    read: 0,
-                },
+                cache: CacheUsage { write: 0, read: 0 },
             }),
             cost: 0.123,
         };
-        
+
         let part2 = UsagePart {
             id: "prt_test2".to_string(),
             message_id: "msg_test2".to_string(),
@@ -293,19 +278,16 @@ mod tests {
                 input: 200,
                 output: 100,
                 reasoning: 0,
-                cache: CacheUsage {
-                    write: 0,
-                    read: 0,
-                },
+                cache: CacheUsage { write: 0, read: 0 },
             }),
             cost: 0.456,
         };
-        
+
         aggregator.add_part(&part1);
         aggregator.add_part(&part2);
-        
+
         let metrics = aggregator.finalize();
-        
+
         // Use approx comparison for floating point
         assert!((metrics.total_cost - 0.579).abs() < 0.0001);
     }
@@ -314,7 +296,7 @@ mod tests {
     #[test]
     fn test_skip_parts_without_tokens() {
         let mut aggregator = UsageAggregator::new();
-        
+
         let part_without_tokens = UsagePart {
             id: "prt_test".to_string(),
             message_id: "msg_test".to_string(),
@@ -323,11 +305,11 @@ mod tests {
             tokens: None,
             cost: 0.0,
         };
-        
+
         aggregator.add_part(&part_without_tokens);
-        
+
         let metrics = aggregator.finalize();
-        
+
         assert_eq!(metrics.total_input_tokens, 0);
         assert_eq!(metrics.interaction_count, 0);
     }
@@ -339,7 +321,7 @@ mod tests {
         let before = SystemTime::now();
         let metrics = aggregator.finalize();
         let after = SystemTime::now();
-        
+
         // Timestamp should be between before and after
         assert!(metrics.timestamp >= before);
         assert!(metrics.timestamp <= after);

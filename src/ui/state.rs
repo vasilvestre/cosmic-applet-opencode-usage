@@ -34,13 +34,18 @@ impl PanelState {
 
     /// Returns true if the state has data (Success or Stale or LoadingWithData)
     pub fn has_data(&self) -> bool {
-        matches!(self, PanelState::Success(_) | PanelState::Stale(_) | PanelState::LoadingWithData(_))
+        matches!(
+            self,
+            PanelState::Success(_) | PanelState::Stale(_) | PanelState::LoadingWithData(_)
+        )
     }
 
     /// Returns a reference to the usage data if available (Success, Stale, or LoadingWithData)
     pub fn get_usage(&self) -> Option<&UsageMetrics> {
         match self {
-            PanelState::Success(usage) | PanelState::Stale(usage) | PanelState::LoadingWithData(usage) => Some(usage),
+            PanelState::Success(usage)
+            | PanelState::Stale(usage)
+            | PanelState::LoadingWithData(usage) => Some(usage),
             _ => None,
         }
     }
@@ -56,7 +61,6 @@ pub enum DisplayMode {
     /// Show this month's usage data only
     Month,
 }
-
 
 /// Application state holding panel state and metadata
 #[derive(Debug, Clone)]
@@ -186,7 +190,7 @@ mod tests {
     fn test_app_state_initial_state() {
         let config = create_mock_config();
         let state = AppState::new(config.clone());
-        
+
         assert!(state.panel_state.is_loading());
         assert_eq!(state.last_update, None);
         assert_eq!(state.config, config);
@@ -197,11 +201,11 @@ mod tests {
         let config = create_mock_config();
         let mut state = AppState::new(config);
         let usage = create_mock_usage_metrics();
-        
+
         // Start in Success state
         state.update_success(usage);
         assert!(matches!(state.panel_state, PanelState::Success(_)));
-        
+
         // Set to loading
         state.set_loading();
         assert!(state.panel_state.is_loading());
@@ -212,9 +216,9 @@ mod tests {
         let config = create_mock_config();
         let mut state = AppState::new(config);
         let usage = create_mock_usage_metrics();
-        
+
         state.update_success(usage.clone());
-        
+
         assert!(matches!(state.panel_state, PanelState::Success(_)));
         assert_eq!(state.panel_state.get_usage(), Some(&usage));
         assert!(state.last_update.is_some());
@@ -224,9 +228,9 @@ mod tests {
     fn test_app_state_update_to_error() {
         let config = create_mock_config();
         let mut state = AppState::new(config);
-        
+
         state.update_error("API failed".to_string());
-        
+
         assert!(state.panel_state.is_error());
         match &state.panel_state {
             PanelState::Error(msg) => assert_eq!(msg, "API failed"),
@@ -241,11 +245,11 @@ mod tests {
         let config = create_mock_config();
         let mut state = AppState::new(config);
         let usage = create_mock_usage_metrics();
-        
+
         // First update to success
         state.update_success(usage.clone());
         assert!(matches!(state.panel_state, PanelState::Success(_)));
-        
+
         // Then mark as stale
         state.mark_stale();
         assert!(matches!(state.panel_state, PanelState::Stale(_)));
@@ -256,7 +260,7 @@ mod tests {
     fn test_needs_refresh_no_update() {
         let config = create_mock_config();
         let state = AppState::new(config);
-        
+
         // No last_update means needs refresh
         assert!(state.needs_refresh());
     }
@@ -266,9 +270,9 @@ mod tests {
         let config = create_mock_config(); // 900 seconds (15 min) interval
         let mut state = AppState::new(config);
         let usage = create_mock_usage_metrics();
-        
+
         state.update_success(usage);
-        
+
         // Just updated, should not need refresh
         assert!(!state.needs_refresh());
     }
@@ -277,10 +281,10 @@ mod tests {
     fn test_needs_refresh_stale_data() {
         let config = create_mock_config();
         let mut state = AppState::new(config);
-        
+
         // Manually set old timestamp (16 minutes ago, beyond 15 min interval)
         state.last_update = Some(Utc::now() - chrono::Duration::seconds(960));
-        
+
         assert!(state.needs_refresh());
     }
 
@@ -288,7 +292,7 @@ mod tests {
     fn test_is_initialized_valid_config() {
         let config = create_mock_config();
         let state = AppState::new(config);
-        
+
         assert!(state.is_initialized());
     }
 
@@ -301,7 +305,7 @@ mod tests {
             use_raw_token_display: false,
         };
         let state = AppState::new(invalid_config);
-        
+
         assert!(!state.is_initialized());
     }
 
@@ -325,9 +329,9 @@ mod tests {
         let config = create_mock_config();
         let mut state = AppState::new(config);
         let usage = create_mock_usage_metrics();
-        
+
         assert!(state.today_usage.is_none());
-        
+
         state.update_today_usage(usage.clone());
         assert!(state.today_usage.is_some());
         assert_eq!(state.today_usage.unwrap(), usage);
@@ -338,10 +342,10 @@ mod tests {
         let config = create_mock_config();
         let mut state = AppState::new(config);
         let usage = create_mock_usage_metrics();
-        
+
         state.update_today_usage(usage);
         assert!(state.today_usage.is_some());
-        
+
         state.clear_today_usage();
         assert!(state.today_usage.is_none());
     }
@@ -351,9 +355,9 @@ mod tests {
         let config = create_mock_config();
         let mut state = AppState::new(config);
         let usage = create_mock_usage_metrics();
-        
+
         assert!(state.month_usage.is_none());
-        
+
         state.update_month_usage(usage.clone());
         assert!(state.month_usage.is_some());
         assert_eq!(state.month_usage.unwrap(), usage);
@@ -364,10 +368,10 @@ mod tests {
         let config = create_mock_config();
         let mut state = AppState::new(config);
         let usage = create_mock_usage_metrics();
-        
+
         state.update_month_usage(usage);
         assert!(state.month_usage.is_some());
-        
+
         state.clear_month_usage();
         assert!(state.month_usage.is_none());
     }
@@ -405,7 +409,7 @@ mod tests {
     fn test_is_loading_returns_true_for_loading_state() {
         let state = PanelState::Loading;
         assert!(state.is_loading());
-        
+
         let state = PanelState::Error("test".to_string());
         assert!(!state.is_loading());
     }
@@ -414,7 +418,7 @@ mod tests {
     fn test_is_error_returns_true_for_error_state() {
         let state = PanelState::Error("test".to_string());
         assert!(state.is_error());
-        
+
         let state = PanelState::Loading;
         assert!(!state.is_error());
     }
@@ -422,16 +426,16 @@ mod tests {
     #[test]
     fn test_has_data_returns_true_for_success_and_stale() {
         let usage = create_mock_usage_metrics();
-        
+
         let success = PanelState::Success(usage.clone());
         assert!(success.has_data());
-        
+
         let stale = PanelState::Stale(usage);
         assert!(stale.has_data());
-        
+
         let loading = PanelState::Loading;
         assert!(!loading.has_data());
-        
+
         let error = PanelState::Error("test".to_string());
         assert!(!error.has_data());
     }
@@ -439,16 +443,16 @@ mod tests {
     #[test]
     fn test_get_usage_returns_data_for_success_and_stale() {
         let usage = create_mock_usage_metrics();
-        
+
         let success = PanelState::Success(usage.clone());
         assert_eq!(success.get_usage(), Some(&usage));
-        
+
         let stale = PanelState::Stale(usage.clone());
         assert_eq!(stale.get_usage(), Some(&usage));
-        
+
         let loading = PanelState::Loading;
         assert_eq!(loading.get_usage(), None);
-        
+
         let error = PanelState::Error("test".to_string());
         assert_eq!(error.get_usage(), None);
     }
