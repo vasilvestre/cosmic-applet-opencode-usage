@@ -2,87 +2,239 @@
 
 //! UI rendering logic for the viewer application.
 
+use crate::core::database::repository::UsageRepository;
 use crate::viewer::Message;
+use chrono::{Datelike, NaiveDate, Utc};
 use cosmic::{
     iced::{Alignment, Length},
     widget::{column, container, row, text},
     Element,
 };
+use std::sync::Arc;
+
+/// Calculates the start of the week (Monday) for a given date.
+fn get_week_start(date: NaiveDate) -> NaiveDate {
+    let weekday = date.weekday().num_days_from_monday();
+    date - chrono::Duration::days(i64::from(weekday))
+}
+
+/// Formats a number with thousands separators.
+fn format_number(n: i64) -> String {
+    let s = n.to_string();
+    let mut result = String::new();
+    for (i, c) in s.chars().rev().enumerate() {
+        if i > 0 && i % 3 == 0 {
+            result.push(',');
+        }
+        result.push(c);
+    }
+    result.chars().rev().collect()
+}
+
+/// Formats a cost value.
+fn format_cost(cost: f64) -> String {
+    format!("${cost:.2}")
+}
+
+/// Calculates percentage change and returns formatted string with arrow.
+fn format_change(current: i64, previous: i64) -> (String, String) {
+    if previous == 0 {
+        if current == 0 {
+            return ("0%".to_string(), "→".to_string());
+        }
+        return ("+∞%".to_string(), "↑".to_string());
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    let change_pct = ((current - previous) as f64 / previous as f64) * 100.0;
+    
+    let arrow = if change_pct > 0.0 {
+        "↑"
+    } else if change_pct < 0.0 {
+        "↓"
+    } else {
+        "→"
+    };
+
+    (format!("{change_pct:+.1}%"), arrow.to_string())
+}
+
+/// Calculates percentage change for costs.
+fn format_cost_change(current: f64, previous: f64) -> (String, String) {
+    if previous == 0.0 {
+        if current == 0.0 {
+            return ("0%".to_string(), "→".to_string());
+        }
+        return ("+∞%".to_string(), "↑".to_string());
+    }
+
+    let change_pct = ((current - previous) / previous) * 100.0;
+    
+    let arrow = if change_pct > 0.0 {
+        "↑"
+    } else if change_pct < 0.0 {
+        "↓"
+    } else {
+        "→"
+    };
+
+    (format!("{change_pct:+.1}%"), arrow.to_string())
+}
+
+/// Renders a comparison row for a metric.
+#[allow(clippy::too_many_arguments)]
+fn comparison_row(
+    label: &str,
+    icon: &str,
+    current: i64,
+    previous: i64,
+) -> cosmic::Element<'static, Message> {
+    let (change_text, arrow) = format_change(current, previous);
+    
+    column()
+        .push(
+            text(format!("{icon} {label}"))
+                .size(16)
+                .width(Length::Fill)
+        )
+        .push(
+            row()
+                .push(text("This Week: ").size(14).width(Length::Fixed(100.0)))
+                .push(text(format_number(current)).size(14).width(Length::Fixed(120.0)))
+                .push(text(arrow).size(16).width(Length::Fixed(30.0)))
+                .push(text(change_text).size(14).width(Length::Fixed(80.0)))
+                .push(text(format!("(Last: {})", format_number(previous))).size(12))
+                .spacing(8)
+        )
+        .spacing(5)
+        .padding([10, 0])
+        .into()
+}
+
+/// Renders a comparison row for cost metric.
+fn cost_comparison_row(
+    label: &str,
+    icon: &str,
+    current: f64,
+    previous: f64,
+) -> cosmic::Element<'static, Message> {
+    let (change_text, arrow) = format_cost_change(current, previous);
+    
+    column()
+        .push(
+            text(format!("{icon} {label}"))
+                .size(16)
+                .width(Length::Fill)
+        )
+        .push(
+            row()
+                .push(text("This Week: ").size(14).width(Length::Fixed(100.0)))
+                .push(text(format_cost(current)).size(14).width(Length::Fixed(120.0)))
+                .push(text(arrow).size(16).width(Length::Fixed(30.0)))
+                .push(text(change_text).size(14).width(Length::Fixed(80.0)))
+                .push(text(format!("(Last: {})", format_cost(previous))).size(12))
+                .spacing(8)
+        )
+        .spacing(5)
+        .padding([10, 0])
+        .into()
+}
 
 /// Renders the main content view for the viewer application.
 ///
-/// This displays a simple test chart with sample data to verify the implementation works.
+/// Displays week-over-week comparison of usage metrics.
 #[must_use]
-pub fn view_content() -> Element<'static, Message> {
-    // Sample data for testing
-    let data = vec![
-        ("Mon", 15000, 8000),
-        ("Tue", 22000, 12000),
-        ("Wed", 18000, 9500),
-        ("Thu", 25000, 13000),
-        ("Fri", 20000, 10500),
-        ("Sat", 12000, 6000),
-        ("Sun", 10000, 5500),
-    ];
+pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Message> {
+    let today = Utc::now().date_naive();
+    let this_week_start = get_week_start(today);
+    let last_week_start = this_week_start - chrono::Duration::days(7);
 
-    let max_value = 30000;
+    // Fetch data
+    let this_week = repository.get_week_summary(this_week_start).ok();
+    let last_week = repository.get_week_summary(last_week_start).ok();
 
-    // Build the chart
-    let mut chart_column = column()
+    let mut content = column()
         .push(
-            text("Weekly Token Usage - Test Chart")
-                .size(24)
-                .width(Length::Fill),
-        )
-        .push(
-            text("Visual bar chart representation (text-based)")
-                .size(14)
-                .width(Length::Fill),
+            text("OpenCode Usage - Weekly Comparison")
+                .size(28)
+                .width(Length::Fill)
         )
         .spacing(20)
         .padding(40)
-        .align_x(Alignment::Center);
+        .align_x(Alignment::Start);
 
-    // Add bars for each day
-    for (day, input, output) in data {
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            clippy::cast_precision_loss
-        )]
-        let input_bars = ((input as f32 / max_value as f32) * 40.0) as usize;
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            clippy::cast_precision_loss
-        )]
-        let output_bars = ((output as f32 / max_value as f32) * 40.0) as usize;
-
-        let input_bar = "█".repeat(input_bars);
-        let output_bar = "▓".repeat(output_bars);
-
-        let day_column = column()
-            .push(text(format!("{day:>3}")).size(14))
-            .push(
-                row()
-                    .push(text("Input:  ").size(12).width(Length::Fixed(80.0)))
-                    .push(text(input_bar).size(12))
-                    .push(text(format!(" {input}")).size(12))
-                    .spacing(5),
-            )
-            .push(
-                row()
-                    .push(text("Output: ").size(12).width(Length::Fixed(80.0)))
-                    .push(text(output_bar).size(12))
-                    .push(text(format!(" {output}")).size(12))
-                    .spacing(5),
-            )
-            .spacing(5);
-
-        chart_column = chart_column.push(day_column);
+    // Add date range info
+    if let Some(ref tw) = this_week {
+        content = content.push(
+            text(format!(
+                "This Week: {} - {} vs Last Week: {} - {}",
+                tw.start_date.format("%b %d"),
+                tw.end_date.format("%b %d"),
+                last_week_start.format("%b %d"),
+                (last_week_start + chrono::Duration::days(6)).format("%b %d")
+            ))
+            .size(14)
+        );
     }
 
-    container(chart_column)
+    content = content.push(text("").size(10)); // Spacer
+
+    match (this_week, last_week) {
+        (Some(tw), Some(lw)) => {
+            // Show all comparisons
+            content = content
+                .push(comparison_row(
+                    "Input Tokens",
+                    "📝",
+                    tw.total_input_tokens,
+                    lw.total_input_tokens,
+                ))
+                .push(comparison_row(
+                    "Output Tokens",
+                    "📤",
+                    tw.total_output_tokens,
+                    lw.total_output_tokens,
+                ))
+                .push(comparison_row(
+                    "Reasoning Tokens",
+                    "🧠",
+                    tw.total_reasoning_tokens,
+                    lw.total_reasoning_tokens,
+                ))
+                .push(cost_comparison_row(
+                    "Total Cost",
+                    "💰",
+                    tw.total_cost,
+                    lw.total_cost,
+                ))
+                .push(comparison_row(
+                    "Interactions",
+                    "🔄",
+                    tw.total_interactions,
+                    lw.total_interactions,
+                ));
+        }
+        (Some(tw), None) => {
+            // Only this week data
+            content = content
+                .push(text("No data available for last week").size(14))
+                .push(text("").size(10))
+                .push(text(format!("This Week Input: {}", format_number(tw.total_input_tokens))).size(14))
+                .push(text(format!("This Week Output: {}", format_number(tw.total_output_tokens))).size(14))
+                .push(text(format!("This Week Cost: {}", format_cost(tw.total_cost))).size(14));
+        }
+        (None, Some(_lw)) => {
+            content = content.push(text("No data available for this week yet").size(14));
+        }
+        (None, None) => {
+            content = content
+                .push(text("No usage data available").size(16))
+                .push(text("").size(10))
+                .push(text("Start using OpenCode to see statistics here!").size(14));
+        }
+    }
+
+    container(content)
         .width(Length::Fill)
         .height(Length::Fill)
         .center_x(200.0)
@@ -92,11 +244,55 @@ pub fn view_content() -> Element<'static, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::database::DatabaseManager;
+    use tempfile::TempDir;
 
     #[test]
-    fn test_view_content_renders() {
-        // Test that view_content returns a valid Element
-        let _element = view_content();
+    fn test_view_content_renders_with_empty_data() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db = Arc::new(DatabaseManager::new_with_path(&db_path).unwrap());
+        let repository = Arc::new(UsageRepository::new(db));
+        
+        // Test that view_content returns a valid Element with empty database
+        let _element = view_content(&repository);
         // If this compiles and runs, the test passes
+    }
+
+    #[test]
+    fn test_get_week_start_monday() {
+        // Monday Oct 27, 2025
+        let monday = NaiveDate::from_ymd_opt(2025, 10, 27).unwrap();
+        assert_eq!(get_week_start(monday), monday);
+    }
+
+    #[test]
+    fn test_get_week_start_friday() {
+        // Friday Oct 31, 2025 -> should return Monday Oct 27
+        let friday = NaiveDate::from_ymd_opt(2025, 10, 31).unwrap();
+        let expected = NaiveDate::from_ymd_opt(2025, 10, 27).unwrap();
+        assert_eq!(get_week_start(friday), expected);
+    }
+
+    #[test]
+    fn test_format_number() {
+        assert_eq!(format_number(1000), "1,000");
+        assert_eq!(format_number(1000000), "1,000,000");
+        assert_eq!(format_number(123), "123");
+    }
+
+    #[test]
+    fn test_format_change() {
+        let (pct, arrow) = format_change(120, 100);
+        assert_eq!(arrow, "↑");
+        assert!(pct.contains("20"));
+
+        let (pct, arrow) = format_change(80, 100);
+        assert_eq!(arrow, "↓");
+        assert!(pct.contains("-20"));
+
+        let (pct, arrow) = format_change(100, 100);
+        assert_eq!(arrow, "→");
+        assert_eq!(pct, "+0.0%");
     }
 }

@@ -70,7 +70,7 @@ impl Application for ViewerApp {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        crate::viewer::ui::view_content()
+        crate::viewer::ui::view_content(&self.repository)
     }
 }
 
