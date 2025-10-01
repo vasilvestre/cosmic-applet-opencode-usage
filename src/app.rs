@@ -4,11 +4,14 @@ use cosmic::{
     Element, Application,
     app::{Core, Task},
     iced::{
-        window,
+        window, Alignment,
         platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup},
     },
-    widget::{button, checkbox, column, icon, row, scrollable, text, text_input},
+    widget::{autosize, button, checkbox, column, icon, row, scrollable, text, text_input, Id},
 };
+use std::sync::LazyLock;
+
+static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
 use crate::core::config::{AppConfig, ConfigError, ConfigWarning, validate_refresh_interval};
 use crate::core::opencode::OpenCodeUsageReader;
@@ -359,6 +362,30 @@ impl OpenCodeMonitorApplet {
         
         scrollable(content).into()
     }
+
+    /// Create the panel button content layout
+    fn panel_button_content(&self) -> Element<'_, Message> {
+        use crate::ui::formatters::format_panel_display_detailed;
+        
+        // If show_today_usage is enabled and we have today's data, show icon + detailed metrics
+        if self.state.config.show_today_usage {
+            if let Some(today_usage) = &self.state.today_usage {
+                let display_text = format_panel_display_detailed(today_usage);
+                // Show icon + text in a row
+                return row()
+                    .push(icon::from_name(self.get_state_icon()).size(16))
+                    .push(self.core.applet.text(display_text))
+                    .spacing(8)
+                    .align_y(Alignment::Center)
+                    .into();
+            }
+        }
+        
+        // Default: just show icon
+        icon::from_name(self.get_state_icon())
+            .size(16)
+            .into()
+    }
 }
 
 /// Implement the Application trait for OpenCodeMonitorApplet
@@ -404,32 +431,12 @@ impl Application for OpenCodeMonitorApplet {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        use crate::ui::formatters::format_panel_display_detailed;
-        
-        // If show_today_usage is enabled and we have today's data, show icon + detailed metrics
-        if self.state.config.show_today_usage {
-            if let Some(today_usage) = &self.state.today_usage {
-                let display_text = format_panel_display_detailed(today_usage);
-                // Show icon + detailed text in a row
-                return button::custom(
-                    row()
-                        .push(icon::from_name(self.get_state_icon()).size(16))
-                        .push(self.core.applet.text(display_text))
-                        .spacing(8)
-                        .align_y(cosmic::iced_core::Alignment::Center)
-                )
-                .on_press_down(Message::TogglePopup)
-                .class(cosmic::theme::Button::Text)
-                .into();
-            }
-        }
-        
-        // Default: just show icon
-        self.core
-            .applet
-            .icon_button(self.get_state_icon())
+        let button = button::custom(self.panel_button_content())
+            .padding([0, self.core.applet.suggested_padding(true)])
             .on_press_down(Message::TogglePopup)
-            .into()
+            .class(cosmic::theme::Button::AppletIcon);
+
+        autosize::autosize(button, AUTOSIZE_MAIN_ID.clone()).into()
     }
 
     fn update(&mut self, message: Self::Message) -> Task<Self::Message> {
@@ -562,16 +569,16 @@ mod tests {
         
         let config = create_mock_config();
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
-            // Should start with AllTime mode
-            assert_eq!(applet.state.display_mode, DisplayMode::AllTime);
-            
-            // Toggle to Today mode
-            let _ = applet.handle_message(Message::ToggleDisplayMode);
+            // Should start with Today mode (new default)
             assert_eq!(applet.state.display_mode, DisplayMode::Today);
             
-            // Toggle back to AllTime
+            // Toggle to AllTime mode
             let _ = applet.handle_message(Message::ToggleDisplayMode);
             assert_eq!(applet.state.display_mode, DisplayMode::AllTime);
+            
+            // Toggle back to Today
+            let _ = applet.handle_message(Message::ToggleDisplayMode);
+            assert_eq!(applet.state.display_mode, DisplayMode::Today);
         }
     }
 
