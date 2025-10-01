@@ -301,6 +301,36 @@ impl OpenCodeMonitorApplet {
                     }
                 }
             }
+            Message::OpenViewer => {
+                // Spawn the viewer application as a separate process
+                match std::process::Command::new("cosmic-applet-opencode-usage-viewer").spawn() {
+                    Ok(_) => {
+                        eprintln!("DEBUG: Viewer application launched successfully");
+                        Task::none()
+                    }
+                    Err(e) => {
+                        eprintln!("ERROR: Failed to launch viewer: {e}");
+                        // Try the binary from the build directory as fallback
+                        match std::process::Command::new(
+                            "./target/release/cosmic-applet-opencode-usage-viewer",
+                        )
+                        .spawn()
+                        {
+                            Ok(_) => {
+                                eprintln!("DEBUG: Viewer launched from build directory");
+                                Task::none()
+                            }
+                            Err(e2) => {
+                                eprintln!(
+                                    "ERROR: Failed to launch viewer from build directory: {e2}"
+                                );
+                                // Could show an error message in the UI here in the future
+                                Task::none()
+                            }
+                        }
+                    }
+                }
+            }
             Message::Tick => {
                 // Check if we need to refresh based on last update time
                 if self.state.needs_refresh() {
@@ -323,6 +353,7 @@ impl OpenCodeMonitorApplet {
     }
 
     /// Build the metrics popup view
+    #[allow(clippy::too_many_lines)] // UI function with many widget definitions
     fn metrics_popup_view(&self) -> Element<'_, Message> {
         use crate::ui::formatters::{format_cost, format_number, format_tooltip};
 
@@ -330,7 +361,12 @@ impl OpenCodeMonitorApplet {
             PanelState::Loading => column()
                 .push(text("Loading...").size(16))
                 .push(text("").size(8))
-                .push(button::standard("Settings").on_press(Message::OpenSettings))
+                .push(
+                    row()
+                        .push(button::standard("View Stats").on_press(Message::OpenViewer))
+                        .push(button::standard("Settings").on_press(Message::OpenSettings))
+                        .spacing(8),
+                )
                 .spacing(10)
                 .padding(20),
             PanelState::Error(err) => column()
@@ -338,7 +374,12 @@ impl OpenCodeMonitorApplet {
                 .push(text(err).size(14))
                 .push(text("").size(8))
                 .push(button::standard("Retry").on_press(Message::FetchMetrics))
-                .push(button::standard("Settings").on_press(Message::OpenSettings))
+                .push(
+                    row()
+                        .push(button::standard("View Stats").on_press(Message::OpenViewer))
+                        .push(button::standard("Settings").on_press(Message::OpenSettings))
+                        .spacing(8),
+                )
                 .spacing(10)
                 .padding(20),
             PanelState::Success(usage)
@@ -421,7 +462,12 @@ impl OpenCodeMonitorApplet {
                     .push(text("").size(8))
                     .push(text(format_tooltip(self.state.last_update)).size(12))
                     .push(text("").size(8))
-                    .push(button::standard("Settings").on_press(Message::OpenSettings))
+                    .push(
+                        row()
+                            .push(button::standard("View Stats").on_press(Message::OpenViewer))
+                            .push(button::standard("Settings").on_press(Message::OpenSettings))
+                            .spacing(8),
+                    )
                     .spacing(10)
                     .padding(20)
             }

@@ -39,6 +39,8 @@ pub enum Message {
     SelectDisplayMode(DisplayMode),
     /// Periodic timer tick for auto-refresh
     Tick,
+    /// Open the viewer application
+    OpenViewer,
     /// No-op message for event handling
     None,
 }

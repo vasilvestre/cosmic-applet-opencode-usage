@@ -8,6 +8,8 @@ A COSMIC Desktop applet for tracking OpenCode/Claude Code usage metrics and toke
 - **Aggregated Metrics**: View total input, output, reasoning, and cache tokens
 - **Cost Tracking**: Track estimated costs based on token usage
 - **System Panel Integration**: Quick access from the COSMIC panel
+- **Historical Data Viewer**: Dedicated viewer application for detailed usage statistics and charts
+- **One-Click Access**: Launch the viewer directly from the applet with the "View Stats" button
 - **Lightweight**: Minimal resource usage with efficient caching
 
 ## What is OpenCode?
