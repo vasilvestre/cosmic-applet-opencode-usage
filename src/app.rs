@@ -7,7 +7,7 @@ use cosmic::{
         window,
         platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup},
     },
-    widget::{button, column, container, row, scrollable, text, text_input},
+    widget::{button, checkbox, column, container, row, scrollable, text, text_input},
 };
 
 use crate::core::config::{AppConfig, ConfigError, ConfigWarning, validate_refresh_interval};
@@ -89,6 +89,22 @@ impl OpenCodeMonitorApplet {
                         self.state.update_error(error_msg);
                     }
                 }
+
+                // If show_today_usage is enabled, also fetch today's usage for panel display
+                if self.state.config.show_today_usage {
+                    eprintln!("[FetchMetrics] Fetching today's usage for panel display");
+                    match self.reader.get_usage_today() {
+                        Ok(today_metrics) => {
+                            eprintln!("[FetchMetrics] Successfully cached today's usage for panel: ${:.2}", today_metrics.total_cost);
+                            self.state.update_today_usage(today_metrics);
+                        }
+                        Err(e) => {
+                            eprintln!("[FetchMetrics] Error fetching today's usage for panel: {}", e);
+                            self.state.clear_today_usage();
+                        }
+                    }
+                }
+
                 Task::none()
             }
             Message::MetricsFetched(Ok(usage)) => {
@@ -153,6 +169,11 @@ impl OpenCodeMonitorApplet {
                 // Update config in state (no persistence for now - will be added later)
                 self.state.config.refresh_interval_seconds = self.temp_refresh_interval;
                 self.state.config.show_today_usage = self.temp_show_today_usage;
+                
+                // Clear today's usage cache if the setting was disabled
+                if !self.temp_show_today_usage {
+                    self.state.clear_today_usage();
+                }
                 
                 // Success: close settings
                 self.settings_dialog_open = false;
@@ -301,6 +322,15 @@ impl OpenCodeMonitorApplet {
                         .unwrap_or(Message::None)
                 })
             )
+            .push(text("").size(8))
+            .push(text("Display Options").size(14))
+            .push(
+                checkbox(
+                    "Show today's usage next to icon",
+                    self.temp_show_today_usage
+                )
+                .on_toggle(Message::ToggleShowTodayUsage)
+            )
             .spacing(10)
             .padding(20);
         
@@ -380,6 +410,21 @@ impl Application for OpenCodeMonitorApplet {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
+        use crate::ui::formatters::format_cost_compact;
+        
+        // If show_today_usage is enabled and we have today's data, show cost text as button
+        if self.state.config.show_today_usage {
+            if let Some(today_usage) = &self.state.today_usage {
+                let cost_text = format_cost_compact(today_usage.total_cost);
+                return container(
+                    button::standard(cost_text)
+                        .on_press(Message::TogglePopup)
+                )
+                .into();
+            }
+        }
+        
+        // Default: just show icon
         self.core
             .applet
             .icon_button(self.get_state_icon())
@@ -521,12 +566,54 @@ mod tests {
             assert_eq!(applet.state.display_mode, DisplayMode::AllTime);
             
             // Toggle to Today mode
-            applet.handle_message(Message::ToggleDisplayMode);
+            let _ = applet.handle_message(Message::ToggleDisplayMode);
             assert_eq!(applet.state.display_mode, DisplayMode::Today);
             
             // Toggle back to AllTime
-            applet.handle_message(Message::ToggleDisplayMode);
+            let _ = applet.handle_message(Message::ToggleDisplayMode);
             assert_eq!(applet.state.display_mode, DisplayMode::AllTime);
+        }
+    }
+
+    #[test]
+    fn test_show_today_usage_toggle() {
+        let config = create_mock_config();
+        if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
+            // Should start disabled
+            assert!(!applet.state.config.show_today_usage);
+            assert!(!applet.temp_show_today_usage);
+            
+            // Open settings
+            let _ = applet.handle_message(Message::OpenSettings);
+            assert!(applet.settings_dialog_open);
+            
+            // Toggle show_today_usage
+            let _ = applet.handle_message(Message::ToggleShowTodayUsage(true));
+            assert!(applet.temp_show_today_usage);
+            
+            // Save config
+            let _ = applet.handle_message(Message::SaveConfig);
+            assert!(applet.state.config.show_today_usage);
+            assert!(!applet.settings_dialog_open);
+        }
+    }
+
+    #[test]
+    fn test_show_today_usage_clears_cache_when_disabled() {
+        let config = create_mock_config();
+        if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
+            // Add some today usage data
+            let usage = create_mock_usage_metrics();
+            applet.state.update_today_usage(usage);
+            assert!(applet.state.today_usage.is_some());
+            
+            // Open settings and toggle off
+            let _ = applet.handle_message(Message::OpenSettings);
+            let _ = applet.handle_message(Message::ToggleShowTodayUsage(false));
+            let _ = applet.handle_message(Message::SaveConfig);
+            
+            // Cache should be cleared
+            assert!(applet.state.today_usage.is_none());
         }
     }
 }

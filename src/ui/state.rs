@@ -75,6 +75,8 @@ pub struct AppState {
     pub config: AppConfig,
     /// Current display mode (Today or AllTime)
     pub display_mode: DisplayMode,
+    /// Today's usage for panel display (cached)
+    pub today_usage: Option<UsageMetrics>,
 }
 
 impl AppState {
@@ -85,6 +87,7 @@ impl AppState {
             last_update: None,
             config,
             display_mode: DisplayMode::AllTime,
+            today_usage: None,
         }
     }
 
@@ -126,6 +129,16 @@ impl AppState {
     /// Toggle the display mode between Today and AllTime
     pub fn toggle_display_mode(&mut self) {
         self.display_mode = self.display_mode.toggle();
+    }
+
+    /// Update today's usage for panel display
+    pub fn update_today_usage(&mut self, usage: UsageMetrics) {
+        self.today_usage = Some(usage);
+    }
+
+    /// Clear today's usage cache
+    pub fn clear_today_usage(&mut self) {
+        self.today_usage = None;
     }
 }
 
@@ -286,6 +299,32 @@ mod tests {
     fn test_display_mode_enum_toggle() {
         assert_eq!(DisplayMode::AllTime.toggle(), DisplayMode::Today);
         assert_eq!(DisplayMode::Today.toggle(), DisplayMode::AllTime);
+    }
+
+    #[test]
+    fn test_update_today_usage() {
+        let config = create_mock_config();
+        let mut state = AppState::new(config);
+        let usage = create_mock_usage_metrics();
+        
+        assert!(state.today_usage.is_none());
+        
+        state.update_today_usage(usage.clone());
+        assert!(state.today_usage.is_some());
+        assert_eq!(state.today_usage.unwrap(), usage);
+    }
+
+    #[test]
+    fn test_clear_today_usage() {
+        let config = create_mock_config();
+        let mut state = AppState::new(config);
+        let usage = create_mock_usage_metrics();
+        
+        state.update_today_usage(usage);
+        assert!(state.today_usage.is_some());
+        
+        state.clear_today_usage();
+        assert!(state.today_usage.is_none());
     }
 
     // PanelState tests

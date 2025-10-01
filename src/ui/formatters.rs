@@ -26,6 +26,17 @@ pub fn format_cost(cost: f64) -> String {
     format!("${:.2}", cost)
 }
 
+/// Format cost compactly for panel display
+pub fn format_cost_compact(cost: f64) -> String {
+    if cost >= 10.0 {
+        format!("${:.0}", cost)
+    } else if cost >= 1.0 {
+        format!("${:.1}", cost)
+    } else {
+        format!("${:.2}", cost)
+    }
+}
+
 /// Get the primary metric to display (total cost)
 pub fn get_primary_metric(usage: &UsageMetrics) -> u64 {
     // Convert cost to cents for display as integer
@@ -66,6 +77,26 @@ mod tests {
         assert_eq!(format_cost(12.5), "$12.50");
         assert_eq!(format_cost(0.99), "$0.99");
         assert_eq!(format_cost(1234.567), "$1234.57");
+    }
+
+    #[test]
+    fn test_format_cost_compact_small() {
+        assert_eq!(format_cost_compact(0.05), "$0.05");
+        assert_eq!(format_cost_compact(0.99), "$0.99");
+    }
+
+    #[test]
+    fn test_format_cost_compact_medium() {
+        assert_eq!(format_cost_compact(1.5), "$1.5");
+        assert_eq!(format_cost_compact(5.99), "$6.0");
+        assert_eq!(format_cost_compact(9.45), "$9.4");
+    }
+
+    #[test]
+    fn test_format_cost_compact_large() {
+        assert_eq!(format_cost_compact(10.0), "$10");
+        assert_eq!(format_cost_compact(12.5), "$12");
+        assert_eq!(format_cost_compact(125.67), "$126");
     }
 
     #[test]
