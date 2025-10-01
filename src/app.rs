@@ -1,5 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! Main applet implementation with automatic data collection.
+//!
+//! This module integrates the `DataCollector` to automatically save daily usage
+//! snapshots whenever `OpenCode` metrics are fetched. The collection happens:
+//! - Once per day (uses `INSERT OR REPLACE` to prevent duplicates)
+//! - Automatically on `MetricsFetched` message
+//! - With graceful error handling (logs errors but doesn't crash)
+//!
+//! If database initialization fails, the applet continues without automatic
+//! collection, ensuring the UI remains functional.
+
 use cosmic::{
     app::{Core, Task},
     iced::{
@@ -68,6 +79,8 @@ impl OpenCodeMonitorApplet {
         let (refresh_interval_tx, _rx) = watch::channel(config.refresh_interval_seconds);
 
         // Initialize data collector with database
+        // This enables automatic daily snapshot collection when metrics are fetched.
+        // If initialization fails, we continue without collection (graceful degradation).
         let data_collector = match DatabaseManager::new() {
             Ok(db_manager) => {
                 eprintln!("[DataCollector] Database initialized successfully");
@@ -174,7 +187,9 @@ impl OpenCodeMonitorApplet {
                 Ok((usage, today_opt, month_opt)) => {
                     eprintln!("[MetricsFetched] Received successful metrics data");
 
-                    // Attempt to save snapshot using data collector
+                    // Automatically save daily snapshot to database
+                    // This runs once per day and uses INSERT OR REPLACE to prevent duplicates.
+                    // Errors are logged but don't prevent the UI from updating.
                     if let Some(ref collector) = self.data_collector {
                         match collector.collect_and_save(&usage) {
                             Ok(true) => {
@@ -189,7 +204,9 @@ impl OpenCodeMonitorApplet {
                             }
                         }
                     } else {
-                        eprintln!("[MetricsFetched] Data collector not available, skipping snapshot");
+                        eprintln!(
+                            "[MetricsFetched] Data collector not available, skipping snapshot"
+                        );
                     }
 
                     // If we're in Month mode, the main usage is the month data - cache it
@@ -637,6 +654,8 @@ impl Application for OpenCodeMonitorApplet {
         let (refresh_interval_tx, _rx) = watch::channel(flags.refresh_interval_seconds);
 
         // Initialize data collector with database
+        // This enables automatic daily snapshot collection when metrics are fetched.
+        // If initialization fails, we continue without collection (graceful degradation).
         let data_collector = match DatabaseManager::new() {
             Ok(db_manager) => {
                 eprintln!("[DataCollector] Database initialized successfully");
