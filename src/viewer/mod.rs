@@ -6,6 +6,7 @@
 //! infrastructure with the applet for viewing historical usage data.
 
 pub mod app;
+pub mod charts;
 pub mod ui;
 
 pub use app::{Message, ViewerApp};
