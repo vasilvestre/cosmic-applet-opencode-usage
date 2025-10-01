@@ -3,6 +3,7 @@
 //! UI rendering logic for the viewer application.
 
 use crate::core::database::repository::UsageRepository;
+use crate::viewer::charts;
 use crate::viewer::Message;
 use chrono::{Datelike, NaiveDate, Utc};
 use cosmic::{
@@ -144,30 +145,16 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
     let last_week_start = this_week_start - chrono::Duration::days(7);
 
     // Fetch data
-    eprintln!("DEBUG: Fetching this week summary starting {this_week_start}");
     let this_week = match repository.get_week_summary(this_week_start) {
-        Ok(summary) => {
-            eprintln!(
-                "DEBUG: This week summary: input={}, output={}, cost={}",
-                summary.total_input_tokens, summary.total_output_tokens, summary.total_cost
-            );
-            Some(summary)
-        }
+        Ok(summary) => Some(summary),
         Err(e) => {
             eprintln!("ERROR: Failed to get this week summary: {e}");
             None
         }
     };
 
-    eprintln!("DEBUG: Fetching last week summary starting {last_week_start}");
     let last_week = match repository.get_week_summary(last_week_start) {
-        Ok(summary) => {
-            eprintln!(
-                "DEBUG: Last week summary: input={}, output={}, cost={}",
-                summary.total_input_tokens, summary.total_output_tokens, summary.total_cost
-            );
-            Some(summary)
-        }
+        Ok(summary) => Some(summary),
         Err(e) => {
             eprintln!("ERROR: Failed to get last week summary: {e}");
             None
@@ -294,6 +281,25 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
                 .push(text("No usage data available").size(16))
                 .push(text("").size(10))
                 .push(text("Start using OpenCode to see statistics here!").size(14));
+        }
+    }
+
+    // Add historical chart for last 30 days
+    let end_date = today;
+    let start_date = today - chrono::Duration::days(30);
+    
+    match repository.get_range(start_date, end_date) {
+        Ok(snapshots) if !snapshots.is_empty() => {
+            content = content
+                .push(text("").size(20)) // Spacer
+                .push(text("30-Day History").size(20))
+                .push(charts::token_usage_chart(snapshots));
+        }
+        Ok(_) => {
+            // No data for chart range
+        }
+        Err(e) => {
+            eprintln!("ERROR: Failed to fetch chart data: {e}");
         }
     }
 
