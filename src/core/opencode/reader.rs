@@ -40,14 +40,17 @@ struct CachedData {
     files: HashMap<PathBuf, CachedFile>,
 }
 
-/// Main orchestrator for reading OpenCode usage data
+/// Main orchestrator for reading `OpenCode` usage data
 pub struct OpenCodeUsageReader {
     scanner: StorageScanner,
     cache: Option<CachedData>,
 }
 
 impl OpenCodeUsageReader {
-    /// Create a new reader with default OpenCode storage path
+    /// Create a new reader with default `OpenCode` storage path
+    ///
+    /// # Errors
+    /// Returns an error if the scanner cannot be initialized.
     pub fn new() -> Result<Self, ReaderError> {
         let scanner = StorageScanner::new()?;
         Ok(Self {
@@ -57,6 +60,9 @@ impl OpenCodeUsageReader {
     }
 
     /// Create a reader with a custom path (useful for testing)
+    ///
+    /// # Errors
+    /// Returns an error if the scanner cannot be initialized with the given path.
     pub fn new_with_path(path: &str) -> Result<Self, ReaderError> {
         let scanner = StorageScanner::with_path(std::path::PathBuf::from(path))?;
         Ok(Self {
@@ -66,6 +72,7 @@ impl OpenCodeUsageReader {
     }
 
     /// Create a reader with a custom scanner (useful for testing)
+    #[must_use]
     pub fn with_scanner(scanner: StorageScanner) -> Self {
         Self {
             scanner,
@@ -74,11 +81,15 @@ impl OpenCodeUsageReader {
     }
 
     /// Get the storage path
+    #[must_use]
     pub fn storage_path(&self) -> &PathBuf {
         self.scanner.storage_path()
     }
 
     /// Get usage metrics, using cache if available and not expired
+    ///
+    /// # Errors
+    /// Returns an error if no data is found or if parsing fails.
     pub fn get_usage(&mut self) -> Result<UsageMetrics, ReaderError> {
         // Check if we have valid cached data (time-based)
         if let Some(cached) = &self.cache {
@@ -119,6 +130,9 @@ impl OpenCodeUsageReader {
     }
 
     /// Get usage metrics for today only (files modified today)
+    ///
+    /// # Errors
+    /// Returns an error if no data is found for today or if parsing fails.
     pub fn get_usage_today(&mut self) -> Result<UsageMetrics, ReaderError> {
         // Calculate start of today (midnight) as cutoff time
         let cutoff = Self::get_today_start();
@@ -135,6 +149,9 @@ impl OpenCodeUsageReader {
     }
 
     /// Get usage metrics for this month only (files modified this month)
+    ///
+    /// # Errors
+    /// Returns an error if no data is found for this month or if parsing fails.
     pub fn get_usage_month(&mut self) -> Result<UsageMetrics, ReaderError> {
         // Calculate start of month (first day at midnight) as cutoff time
         let cutoff = Self::get_month_start();
@@ -150,7 +167,7 @@ impl OpenCodeUsageReader {
         self.parse_and_aggregate(&month_files)
     }
 
-    /// Get the start of today (midnight) as SystemTime
+    /// Get the start of today (midnight) as `SystemTime`
     fn get_today_start() -> SystemTime {
         let now = SystemTime::now();
         let now_since_epoch = now
@@ -165,7 +182,7 @@ impl OpenCodeUsageReader {
         SystemTime::UNIX_EPOCH + Duration::from_secs(today_start_secs)
     }
 
-    /// Get the start of this month (first day at midnight) as SystemTime
+    /// Get the start of this month (first day at midnight) as `SystemTime`
     fn get_month_start() -> SystemTime {
         use std::time::UNIX_EPOCH;
 
@@ -181,10 +198,13 @@ impl OpenCodeUsageReader {
         // Convert to SystemTime using the timestamp
         // timestamp() returns seconds since UNIX_EPOCH in UTC
         let timestamp = month_start.timestamp();
-        UNIX_EPOCH + Duration::from_secs(timestamp.max(0) as u64)
+        // Ensure timestamp is non-negative before casting
+        #[allow(clippy::cast_sign_loss)]
+        let timestamp_u64 = timestamp.max(0) as u64;
+        UNIX_EPOCH + Duration::from_secs(timestamp_u64)
     }
 
-    /// Parse and aggregate usage files (shared logic for get_usage and get_usage_today)
+    /// Parse and aggregate usage files (shared logic for `get_usage` and `get_usage_today`)
     fn parse_and_aggregate(&mut self, files: &[FileMetadata]) -> Result<UsageMetrics, ReaderError> {
         // Determine which files need to be parsed
         let (parts_to_aggregate, _) = self.incremental_parse(files)?;
@@ -204,6 +224,7 @@ impl OpenCodeUsageReader {
     }
 
     /// Parse only new or modified files, reusing cached results for unchanged files
+    #[allow(clippy::unnecessary_wraps)] // May return errors in future implementations
     fn incremental_parse(
         &self,
         files: &[FileMetadata],
@@ -236,23 +257,17 @@ impl OpenCodeUsageReader {
 
             if needs_parse {
                 // Parse the file
-                match UsageParser::parse_file(&file_meta.path) {
-                    Ok(Some(part)) => {
-                        parts.push(part.clone());
-                        new_cache.insert(
-                            file_meta.path.clone(),
-                            CachedFile {
-                                part,
-                                modified: file_meta.modified,
-                            },
-                        );
-                    }
-                    Ok(None) => {
-                        // File parsed but no tokens - skip silently
-                    }
-                    Err(_) => {
-                        // Invalid JSON - skip silently
-                    }
+                if let Ok(Some(part)) = UsageParser::parse_file(&file_meta.path) {
+                    parts.push(part.clone());
+                    new_cache.insert(
+                        file_meta.path.clone(),
+                        CachedFile {
+                            part,
+                            modified: file_meta.modified,
+                        },
+                    );
+                } else {
+                    // File parsed but no tokens, or invalid JSON - skip silently
                 }
             }
         }
@@ -272,6 +287,8 @@ impl OpenCodeUsageReader {
 }
 
 #[cfg(test)]
+#[allow(clippy::cast_possible_wrap)] // Tests use time conversions
+#[allow(clippy::cast_sign_loss)] // Tests use time conversions
 mod tests {
     use super::*;
     use std::fs;
@@ -280,7 +297,7 @@ mod tests {
 
     /// Helper to create a temporary test directory
     fn create_test_dir(name: &str) -> PathBuf {
-        let temp_dir = std::env::temp_dir().join(format!("opencode_reader_test_{}", name));
+        let temp_dir = std::env::temp_dir().join(format!("opencode_reader_test_{name}"));
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).expect("Failed to create test directory");
         temp_dir
@@ -290,25 +307,24 @@ mod tests {
     fn create_usage_file(dir: &Path, name: &str, input: u64, output: u64, cost: f64) {
         let content = format!(
             r#"{{
-                "id": "prt_{}",
+                "id": "prt_{name}",
                 "messageID": "msg_test",
                 "sessionID": "ses_test",
                 "type": "step-finish",
                 "tokens": {{
-                    "input": {},
-                    "output": {},
+                    "input": {input},
+                    "output": {output},
                     "reasoning": 0,
                     "cache": {{
                         "write": 0,
                         "read": 0
                     }}
                 }},
-                "cost": {}
-            }}"#,
-            name, input, output, cost
+                "cost": {cost}
+            }}"#
         );
 
-        let file_path = dir.join(format!("{}.json", name));
+        let file_path = dir.join(format!("{name}.json"));
         let mut file = fs::File::create(file_path).expect("Failed to create test file");
         file.write_all(content.as_bytes())
             .expect("Failed to write test file");
@@ -726,7 +742,7 @@ mod tests {
         eprintln!(
             "Cache after get_usage_today: exists={}, files={}",
             reader.cache.is_some(),
-            reader.cache.as_ref().map(|c| c.files.len()).unwrap_or(0)
+            reader.cache.as_ref().map_or(0, |c| c.files.len())
         );
 
         // The problem: parse_and_aggregate() doesn't update the cache
@@ -762,14 +778,14 @@ mod tests {
 
         // Create many files to simulate real-world scenario
         for i in 0..100 {
-            create_usage_file(&test_dir, &format!("file{}", i), 100, 50, 0.25);
+            create_usage_file(&test_dir, &format!("file{i}"), 100, 50, 0.25);
         }
 
         // Set some files to yesterday
         let yesterday = SystemTime::now() - Duration::from_secs(25 * 60 * 60);
         for i in 0..50 {
             filetime::set_file_mtime(
-                test_dir.join(format!("file{}.json", i)),
+                test_dir.join(format!("file{i}.json")),
                 filetime::FileTime::from_system_time(yesterday),
             )
             .expect("Failed to set time");
@@ -782,7 +798,7 @@ mod tests {
         let start = std::time::Instant::now();
         let alltime_metrics = reader.get_usage().expect("Should read all-time data");
         let first_duration = start.elapsed();
-        eprintln!("First all-time read: {:?}", first_duration);
+        eprintln!("First all-time read: {first_duration:?}");
         assert_eq!(alltime_metrics.interaction_count, 100);
         assert_eq!(reader.cache.as_ref().unwrap().files.len(), 100);
 
@@ -790,22 +806,20 @@ mod tests {
         let start = std::time::Instant::now();
         let today_metrics = reader.get_usage_today().expect("Should read today's data");
         let today_duration = start.elapsed();
-        eprintln!("Today read: {:?}", today_duration);
+        eprintln!("Today read: {today_duration:?}");
         assert_eq!(today_metrics.interaction_count, 50);
 
         // Third: Get all-time again (should be FAST - cache not expired yet)
         let start = std::time::Instant::now();
         let alltime_metrics2 = reader.get_usage().expect("Should read all-time data");
         let second_duration = start.elapsed();
-        eprintln!("Second all-time read (cached): {:?}", second_duration);
+        eprintln!("Second all-time read (cached): {second_duration:?}");
         assert_eq!(alltime_metrics2.interaction_count, 100);
 
         // The second all-time read should be much faster (using cache)
         assert!(
             second_duration < first_duration / 10,
-            "Second read should be at least 10x faster: first={:?}, second={:?}",
-            first_duration,
-            second_duration
+            "Second read should be at least 10x faster: first={first_duration:?}, second={second_duration:?}"
         );
 
         fs::remove_dir_all(test_dir).ok();

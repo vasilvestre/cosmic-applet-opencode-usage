@@ -21,13 +21,13 @@ use crate::core::opencode::OpenCodeUsageReader;
 use crate::ui::state::{AppState, DisplayMode, PanelState};
 use crate::ui::Message;
 
-/// OpenCode usage monitor applet structure
+/// `OpenCode` usage monitor applet structure
 pub struct OpenCodeMonitorApplet {
     /// Application state managed by COSMIC runtime
     core: Core,
     /// Application state containing UI and data state
     state: AppState,
-    /// OpenCode usage reader
+    /// `OpenCode` usage reader
     reader: OpenCodeUsageReader,
     /// Settings UI state
     settings_dialog_open: bool,
@@ -44,7 +44,10 @@ pub struct OpenCodeMonitorApplet {
 }
 
 impl OpenCodeMonitorApplet {
-    /// Create a new OpenCodeMonitorApplet instance
+    /// Create a new `OpenCodeMonitorApplet` instance
+    ///
+    /// # Errors
+    /// Returns an error if the storage path is invalid or if the reader cannot be initialized.
     pub fn new(config: AppConfig) -> Result<Self, Box<dyn std::error::Error>> {
         let reader = if let Some(ref path) = config.storage_path {
             OpenCodeUsageReader::new_with_path(path.to_str().ok_or("Invalid storage path")?)?
@@ -76,6 +79,8 @@ impl OpenCodeMonitorApplet {
     }
 
     /// Handle incoming messages and update application state
+    /// Handle incoming messages and perform async operations
+    #[allow(clippy::too_many_lines)] // Message handler naturally has many branches
     pub fn handle_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::FetchMetrics => {
@@ -100,7 +105,7 @@ impl OpenCodeMonitorApplet {
                             storage_path.to_str().unwrap_or(""),
                         ) {
                             Ok(r) => r,
-                            Err(e) => return Err(format!("Failed to create reader: {}", e)),
+                            Err(e) => return Err(format!("Failed to create reader: {e}")),
                         };
 
                         // Fetch main metrics based on display mode
@@ -120,8 +125,8 @@ impl OpenCodeMonitorApplet {
                         };
 
                         let main_metrics = metrics.map_err(|e| {
-                            eprintln!("[Async] Error reading metrics: {}", e);
-                            format!("Failed to read OpenCode usage: {}", e)
+                            eprintln!("[Async] Error reading metrics: {e}");
+                            format!("Failed to read OpenCode usage: {e}")
                         })?;
 
                         // If show_today_usage is enabled, also fetch today's data
@@ -133,12 +138,12 @@ impl OpenCodeMonitorApplet {
                         };
 
                         // Always fetch month data for caching (independent of display mode)
-                        let month_metrics = if display_mode != DisplayMode::Month {
-                            eprintln!("[Async] Fetching this month's usage for cache");
-                            reader.get_usage_month().ok()
-                        } else {
+                        let month_metrics = if display_mode == DisplayMode::Month {
                             // In Month mode, main_metrics already contains month data
                             None
+                        } else {
+                            eprintln!("[Async] Fetching this month's usage for cache");
+                            reader.get_usage_month().ok()
                         };
 
                         Ok((main_metrics, today_metrics, month_metrics))
@@ -182,13 +187,12 @@ impl OpenCodeMonitorApplet {
                     Task::none()
                 }
                 Err(error) => {
-                    eprintln!("[MetricsFetched] Received error: {}", error);
+                    eprintln!("[MetricsFetched] Received error: {error}");
                     self.state.update_error(error);
                     Task::none()
                 }
             },
-            Message::ThemeChanged => Task::none(),
-            Message::UpdateTooltip => Task::none(),
+            Message::ThemeChanged | Message::UpdateTooltip | Message::None => Task::none(),
             Message::OpenSettings => {
                 self.settings_dialog_open = true;
                 self.temp_refresh_interval = self.state.config.refresh_interval_seconds;
@@ -219,7 +223,7 @@ impl OpenCodeMonitorApplet {
                 Task::none()
             }
             Message::SelectDisplayMode(mode) => {
-                eprintln!("[SelectDisplayMode] Switching to {:?}", mode);
+                eprintln!("[SelectDisplayMode] Switching to {mode:?}");
                 self.state.display_mode = mode;
                 // Trigger a refresh to fetch data for the new mode
                 Task::done(cosmic::Action::App(Message::FetchMetrics))
@@ -250,7 +254,7 @@ impl OpenCodeMonitorApplet {
 
                 // Persist config to disk
                 if let Err(err) = self.state.config.save() {
-                    eprintln!("Warning: Failed to save config: {}", err);
+                    eprintln!("Warning: Failed to save config: {err}");
                     // Don't block the UI if save fails - just log it
                 }
 
@@ -272,7 +276,7 @@ impl OpenCodeMonitorApplet {
             Message::TogglePopup => {
                 eprintln!("DEBUG: TogglePopup message received");
                 if let Some(p) = self.popup.take() {
-                    eprintln!("DEBUG: Closing popup with id: {:?}", p);
+                    eprintln!("DEBUG: Closing popup with id: {p:?}");
                     self.settings_dialog_open = false;
                     self.config_error = None;
                     self.config_warning = None;
@@ -280,11 +284,11 @@ impl OpenCodeMonitorApplet {
                 } else {
                     eprintln!("DEBUG: Opening popup");
                     let new_id = window::Id::unique();
-                    eprintln!("DEBUG: Created new popup id: {:?}", new_id);
+                    eprintln!("DEBUG: Created new popup id: {new_id:?}");
                     self.popup.replace(new_id);
 
                     if let Some(main_id) = self.core.main_window_id() {
-                        eprintln!("DEBUG: Got main window id: {:?}", main_id);
+                        eprintln!("DEBUG: Got main window id: {main_id:?}");
                         let popup_settings = self
                             .core
                             .applet
@@ -306,7 +310,6 @@ impl OpenCodeMonitorApplet {
                     Task::none()
                 }
             }
-            Message::None => Task::none(),
         }
     }
 
@@ -315,8 +318,7 @@ impl OpenCodeMonitorApplet {
         match &self.state.panel_state {
             PanelState::Loading | PanelState::LoadingWithData(_) => "content-loading-symbolic",
             PanelState::Error(_) => "dialog-error-symbolic",
-            PanelState::Success(_) => "dialog-information-symbolic",
-            PanelState::Stale(_) => "dialog-information-symbolic",
+            PanelState::Success(_) | PanelState::Stale(_) => "dialog-information-symbolic",
         }
     }
 
@@ -466,14 +468,14 @@ impl OpenCodeMonitorApplet {
         if let Some(ref err) = self.config_error {
             content = content
                 .push(text("").size(8))
-                .push(text(format!("❌ Error: {}", err)).size(14));
+                .push(text(format!("❌ Error: {err}")).size(14));
         }
 
         // Show warning if present (yellow/info style)
         if let Some(ref warn) = self.config_warning {
             let warning_text = match warn {
                 ConfigWarning::LowRefreshInterval(interval) => {
-                    format!("⚠️  Warning: Refresh interval of {} seconds is very low. This may cause high CPU usage and frequent file system access.", interval)
+                    format!("⚠️  Warning: Refresh interval of {interval} seconds is very low. This may cause high CPU usage and frequent file system access.")
                 }
             };
             content = content
@@ -521,7 +523,7 @@ impl OpenCodeMonitorApplet {
     }
 }
 
-/// Implement the Application trait for OpenCodeMonitorApplet
+/// Implement the Application trait for `OpenCodeMonitorApplet`
 impl Application for OpenCodeMonitorApplet {
     type Executor = cosmic::executor::Default;
     type Flags = AppConfig;
@@ -605,7 +607,7 @@ impl Application for OpenCodeMonitorApplet {
                         _ = timer.tick() => {
                             #[cfg(debug_assertions)]
                             if let Err(err) = output.send(Message::Tick).await {
-                                eprintln!("[Subscription] Failed sending tick: {:?}", err);
+                                eprintln!("[Subscription] Failed sending tick: {err:?}");
                             }
 
                             #[cfg(not(debug_assertions))]
@@ -613,10 +615,10 @@ impl Application for OpenCodeMonitorApplet {
                         },
                         // Update timer if the user changes refresh interval
                         Ok(()) = refresh_interval_rx.changed() => {
-                            interval_seconds = *refresh_interval_rx.borrow_and_update() as u64;
+                            interval_seconds = u64::from(*refresh_interval_rx.borrow_and_update());
 
                             #[cfg(debug_assertions)]
-                            eprintln!("[Subscription] Refresh interval changed to {} seconds", interval_seconds);
+                            eprintln!("[Subscription] Refresh interval changed to {interval_seconds} seconds");
 
                             let period = time::Duration::from_secs(interval_seconds);
                             let start = time::Instant::now() + period;
@@ -668,6 +670,7 @@ impl Application for OpenCodeMonitorApplet {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)] // Tests use exact float comparisons for simplicity
 mod tests {
     use super::*;
     use crate::core::config::AppConfig;

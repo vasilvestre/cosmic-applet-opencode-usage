@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
-/// Helper function to create a realistic OpenCode usage JSON file
+/// Helper function to create a realistic `OpenCode` usage JSON file
 fn create_usage_file(dir: &Path, filename: &str, input_tokens: u64, output_tokens: u64, cost: f64) {
     let content = format!(
         r#"{{
@@ -12,20 +12,17 @@ fn create_usage_file(dir: &Path, filename: &str, input_tokens: u64, output_token
   "sessionID": "ses_test",
   "type": "step-finish",
   "tokens": {{
-    "input": {},
-    "output": {},
+    "input": {input_tokens},
+    "output": {output_tokens},
     "reasoning": 0,
     "cache": {{
       "write": 0,
       "read": 0
     }}
   }},
-  "cost": {}
+  "cost": {cost}
 }}"#,
-        filename.replace(".json", ""),
-        input_tokens,
-        output_tokens,
-        cost
+        filename.replace(".json", "")
     );
     fs::write(dir.join(filename), content).expect("Failed to write test file");
 }
@@ -300,10 +297,11 @@ fn test_integration_large_dataset() {
     let mut expected_output = 0u64;
     let mut expected_cost = 0.0f64;
 
+    #[allow(clippy::cast_sign_loss, clippy::cast_lossless)]
     for i in 0..100 {
         let input = 1000 + (i * 10) as u64;
         let output = 500 + (i * 5) as u64;
-        let cost = 0.015 + (i as f64 * 0.0001);
+        let cost = 0.015 + (f64::from(i) * 0.0001);
 
         expected_input += input;
         expected_output += output;
@@ -311,7 +309,7 @@ fn test_integration_large_dataset() {
 
         create_usage_file(
             &storage_path,
-            &format!("usage-{:03}.json", i),
+            &format!("usage-{i:03}.json"),
             input,
             output,
             cost,

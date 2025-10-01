@@ -7,57 +7,69 @@ use chrono::{DateTime, Utc};
 
 /// Format a number with locale-aware thousand separators
 /// Uses the system locale to determine the appropriate separator
+#[must_use]
 pub fn format_number(n: u64) -> String {
     format_number_locale(n)
 }
 
 /// Format cost in dollars
+#[must_use]
 pub fn format_cost(cost: f64) -> String {
-    format!("${:.2}", cost)
+    format!("${cost:.2}")
 }
 
 /// Format cost compactly for panel display
+#[must_use]
 pub fn format_cost_compact(cost: f64) -> String {
     if cost >= 10.0 {
-        format!("${:.0}", cost)
+        format!("${cost:.0}")
     } else if cost >= 1.0 {
-        format!("${:.1}", cost)
+        format!("${cost:.1}")
     } else {
-        format!("${:.2}", cost)
+        format!("${cost:.2}")
     }
 }
 
 /// Format tokens compactly for panel display (e.g., "1.2k", "15M")
+#[must_use]
 pub fn format_tokens_compact(tokens: u64) -> String {
     if tokens < 1_000 {
         tokens.to_string()
     } else if tokens < 1_000_000 {
+        #[allow(clippy::cast_precision_loss)]
         let k = tokens as f64 / 1_000.0;
         let rounded = k.round();
         if k >= 10.0 || (k - rounded).abs() < 0.01 {
-            format!("{}k", rounded as u64)
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let rounded_u64 = rounded as u64;
+            format!("{rounded_u64}k")
         } else {
-            format!("{:.1}k", k)
+            format!("{k:.1}k")
         }
     } else {
+        #[allow(clippy::cast_precision_loss)]
         let m = tokens as f64 / 1_000_000.0;
         let rounded = m.round();
         if m >= 10.0 || (m - rounded).abs() < 0.01 {
-            format!("{}M", rounded as u64)
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let rounded_u64 = rounded as u64;
+            format!("{rounded_u64}M")
         } else {
-            format!("{:.1}M", m)
+            format!("{m:.1}M")
         }
     }
 }
 
 /// Format tokens as raw numbers without K/M suffixes, using locale-aware thousand separators
 /// (e.g., "1,000" in US, "1 000" in FR, "1.000" in DE)
+#[must_use]
 pub fn format_tokens_raw(tokens: u64) -> String {
     format_number_locale(tokens)
 }
 
 /// Format a number with locale-aware thousand separators
 /// Uses the system locale to determine the appropriate separator
+#[must_use]
 pub fn format_number_locale(n: u64) -> String {
     use num_format::{Locale, ToFormattedString};
 
@@ -69,46 +81,48 @@ pub fn format_number_locale(n: u64) -> String {
 }
 
 /// Format panel display ultra-compact for narrow panels (e.g., "15k/$1.2")
+#[must_use]
 pub fn format_panel_display(usage: &UsageMetrics) -> String {
     let cost = format_cost_compact(usage.total_cost);
     let total_tokens = usage.total_input_tokens + usage.total_output_tokens;
     let tokens = format_tokens_compact(total_tokens);
-    format!("{}/{}", tokens, cost)
+    format!("{tokens}/{cost}")
 }
 
 /// Format comprehensive panel display with all metrics (e.g., "$1.2 | 3x | 10k/5k")
 /// Format: Cost | Interactions | InputTokens/OutputTokens
+#[must_use]
 pub fn format_panel_display_detailed(usage: &UsageMetrics) -> String {
     let cost = format_cost_compact(usage.total_cost);
     let interactions = usage.interaction_count;
     let input_tokens = format_tokens_compact(usage.total_input_tokens);
     let output_tokens = format_tokens_compact(usage.total_output_tokens);
-    format!(
-        "{} | {}x | {}/{}",
-        cost, interactions, input_tokens, output_tokens
-    )
+    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}")
 }
 
 /// Format comprehensive panel display with raw token values (e.g., "$1.2 | 3x | 10000/5000")
 /// Format: Cost | Interactions | InputTokens/OutputTokens (no K/M suffixes)
+#[must_use]
 pub fn format_panel_display_detailed_raw(usage: &UsageMetrics) -> String {
     let cost = format_cost_compact(usage.total_cost);
     let interactions = usage.interaction_count;
     let input_tokens = format_tokens_raw(usage.total_input_tokens);
     let output_tokens = format_tokens_raw(usage.total_output_tokens);
-    format!(
-        "{} | {}x | {}/{}",
-        cost, interactions, input_tokens, output_tokens
-    )
+    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}")
 }
 
 /// Get the primary metric to display (total cost)
+#[must_use]
 pub fn get_primary_metric(usage: &UsageMetrics) -> u64 {
     // Convert cost to cents for display as integer
-    (usage.total_cost * 100.0) as u64
+    // The cost is always positive and should be within u64 range
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let cents = (usage.total_cost * 100.0) as u64;
+    cents
 }
 
 /// Format tooltip with last update timestamp
+#[must_use]
 pub fn format_tooltip(last_update: Option<DateTime<Utc>>) -> String {
     match last_update {
         Some(timestamp) => {
@@ -158,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_format_number_millions() {
-        let result = format_number(1234567);
+        let result = format_number(1_234_567);
         eprintln!(
             "DEBUG: format_number(1234567) = '{}' (len={})",
             result,
@@ -168,7 +182,7 @@ mod tests {
         // We just verify the digits are all present
         assert!(result.len() >= 7); // At least the 7 digits
                                     // Removing non-digits should give us the original number
-        let digits_only: String = result.chars().filter(|c| c.is_ascii_digit()).collect();
+        let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
         assert_eq!(digits_only, "1234567");
     }
 
@@ -176,7 +190,7 @@ mod tests {
     fn test_format_number_locale_consistency() {
         // Test that format_number and format_number_locale produce the same output
         assert_eq!(format_number(1000), format_number_locale(1000));
-        assert_eq!(format_number(1234567), format_number_locale(1234567));
+        assert_eq!(format_number(1_234_567), format_number_locale(1_234_567));
     }
 
     #[test]
@@ -345,6 +359,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::similar_names)] // Test names intentionally similar (1k, 10k, 999k)
     fn test_format_tokens_raw_thousands() {
         // These should have locale-aware separators
         let result_1k = format_tokens_raw(1_000);
@@ -355,21 +370,21 @@ mod tests {
         assert_eq!(
             result_1k
                 .chars()
-                .filter(|c| c.is_ascii_digit())
+                .filter(char::is_ascii_digit)
                 .collect::<String>(),
             "1000"
         );
         assert_eq!(
             result_10k
                 .chars()
-                .filter(|c| c.is_ascii_digit())
+                .filter(char::is_ascii_digit)
                 .collect::<String>(),
             "10500"
         );
         assert_eq!(
             result_999k
                 .chars()
-                .filter(|c| c.is_ascii_digit())
+                .filter(char::is_ascii_digit)
                 .collect::<String>(),
             "999999"
         );
@@ -384,14 +399,14 @@ mod tests {
         assert_eq!(
             result_1m
                 .chars()
-                .filter(|c| c.is_ascii_digit())
+                .filter(char::is_ascii_digit)
                 .collect::<String>(),
             "1000000"
         );
         assert_eq!(
             result_25m
                 .chars()
-                .filter(|c| c.is_ascii_digit())
+                .filter(char::is_ascii_digit)
                 .collect::<String>(),
             "25000000"
         );
@@ -427,12 +442,12 @@ mod tests {
             timestamp: std::time::SystemTime::now(),
         };
         let result = format_panel_display_detailed_raw(&usage);
-        eprintln!("DEBUG: format_panel_display_detailed_raw = '{}'", result);
+        eprintln!("DEBUG: format_panel_display_detailed_raw = '{result}'");
         // Should contain the cost and interaction count
         assert!(result.starts_with("$126 | 1234x | "));
         // Should contain all the digits for the token counts (with possible separators)
-        let digits_only: String = result.chars().filter(|c| c.is_ascii_digit()).collect();
-        eprintln!("DEBUG: digits_only = '{}'", digits_only);
+        let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
+        eprintln!("DEBUG: digits_only = '{digits_only}'");
         // The digits should include: 126, 1234, 25000000, 10000000
         assert!(digits_only.contains("25000000"));
         assert!(digits_only.contains("10000000"));

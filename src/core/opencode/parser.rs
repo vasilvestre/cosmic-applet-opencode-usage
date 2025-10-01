@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use thiserror::Error;
 
-/// Represents the token usage from an OpenCode interaction
+/// Represents the token usage from an `OpenCode` interaction
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TokenUsage {
     pub input: u64,
@@ -18,7 +18,7 @@ pub struct CacheUsage {
     pub read: u64,
 }
 
-/// Represents a usage part from OpenCode storage
+/// Represents a usage part from `OpenCode` storage
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct UsagePart {
     pub id: String,
@@ -42,12 +42,15 @@ pub enum ParserError {
     JsonError(#[from] serde_json::Error),
 }
 
-/// Parser for OpenCode usage data
+/// Parser for `OpenCode` usage data
 pub struct UsageParser;
 
 impl UsageParser {
-    /// Parse JSON string into a UsagePart
+    /// Parse JSON string into a `UsagePart`
     /// Returns None if the part doesn't contain token data
+    ///
+    /// # Errors
+    /// Returns an error if the JSON is invalid or cannot be parsed.
     pub fn parse_json(content: &str) -> Result<Option<UsagePart>, ParserError> {
         let part: UsagePart = serde_json::from_str(content)?;
 
@@ -59,8 +62,11 @@ impl UsageParser {
         Ok(Some(part))
     }
 
-    /// Parse a file into a UsagePart
+    /// Parse a file into a `UsagePart`
     /// Returns None if the part doesn't contain token data
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be read or the JSON cannot be parsed.
     pub fn parse_file(path: &Path) -> Result<Option<UsagePart>, ParserError> {
         let content = std::fs::read_to_string(path)?;
         Self::parse_json(&content)
@@ -68,6 +74,7 @@ impl UsageParser {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)] // Tests use exact float comparisons for simplicity
 mod tests {
     use super::*;
 

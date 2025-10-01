@@ -1,7 +1,7 @@
 use crate::core::opencode::parser::UsagePart;
 use std::time::SystemTime;
 
-/// Aggregated usage metrics from OpenCode
+/// Aggregated usage metrics from `OpenCode`
 #[derive(Debug, Clone, PartialEq)]
 pub struct UsageMetrics {
     pub total_input_tokens: u64,
@@ -27,6 +27,7 @@ pub struct UsageAggregator {
 
 impl UsageAggregator {
     /// Create a new aggregator
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_input_tokens: 0,
@@ -54,6 +55,7 @@ impl UsageAggregator {
     }
 
     /// Finalize and return the aggregated metrics
+    #[must_use]
     pub fn finalize(self) -> UsageMetrics {
         UsageMetrics {
             total_input_tokens: self.total_input_tokens,
@@ -75,6 +77,7 @@ impl Default for UsageAggregator {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)] // Tests use exact float comparisons for simplicity
 mod tests {
     use super::*;
     use crate::core::opencode::parser::{CacheUsage, TokenUsage};
@@ -231,8 +234,8 @@ mod tests {
         // Add 5 parts with tokens
         for i in 0..5 {
             let part = UsagePart {
-                id: format!("prt_test{}", i),
-                message_id: format!("msg_test{}", i),
+                id: format!("prt_test{i}"),
+                message_id: format!("msg_test{i}"),
                 session_id: "ses_test".to_string(),
                 event_type: "step-finish".to_string(),
                 tokens: Some(TokenUsage {

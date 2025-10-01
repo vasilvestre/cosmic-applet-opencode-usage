@@ -22,17 +22,20 @@ pub enum PanelState {
 }
 
 impl PanelState {
-    /// Returns true if the state is Loading or LoadingWithData
+    /// Returns true if the state is Loading or `LoadingWithData`
+    #[must_use]
     pub fn is_loading(&self) -> bool {
         matches!(self, PanelState::Loading | PanelState::LoadingWithData(_))
     }
 
     /// Returns true if the state is Error
+    #[must_use]
     pub fn is_error(&self) -> bool {
         matches!(self, PanelState::Error(_))
     }
 
-    /// Returns true if the state has data (Success or Stale or LoadingWithData)
+    /// Returns true if the state has data (Success or Stale or `LoadingWithData`)
+    #[must_use]
     pub fn has_data(&self) -> bool {
         matches!(
             self,
@@ -40,7 +43,8 @@ impl PanelState {
         )
     }
 
-    /// Returns a reference to the usage data if available (Success, Stale, or LoadingWithData)
+    /// Returns a reference to the usage data if available (Success, Stale, or `LoadingWithData`)
+    #[must_use]
     pub fn get_usage(&self) -> Option<&UsageMetrics> {
         match self {
             PanelState::Success(usage)
@@ -71,7 +75,7 @@ pub struct AppState {
     pub last_update: Option<DateTime<Utc>>,
     /// Application configuration
     pub config: AppConfig,
-    /// Current display mode (Today or AllTime)
+    /// Current display mode (Today or `AllTime`)
     pub display_mode: DisplayMode,
     /// Today's usage for panel display (cached)
     pub today_usage: Option<UsageMetrics>,
@@ -80,7 +84,8 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Creates a new AppState with Loading state
+    /// Creates a new `AppState` with Loading state
+    #[must_use]
     pub fn new(config: AppConfig) -> Self {
         AppState {
             panel_state: PanelState::Loading,
@@ -122,17 +127,19 @@ impl AppState {
     }
 
     /// Checks if data should be refreshed based on last update time and config interval
+    #[must_use]
     pub fn needs_refresh(&self) -> bool {
         match self.last_update {
             None => true,
             Some(last) => {
                 let elapsed = Utc::now() - last;
-                elapsed > chrono::Duration::seconds(self.config.refresh_interval_seconds as i64)
+                elapsed > chrono::Duration::seconds(i64::from(self.config.refresh_interval_seconds))
             }
         }
     }
 
     /// Checks if the application configuration is valid
+    #[must_use]
     pub fn is_initialized(&self) -> bool {
         self.config.validate().is_ok()
     }
@@ -379,11 +386,11 @@ mod tests {
     // PanelState tests
     #[test]
     fn test_panel_state_variants_exist() {
-        let _loading = PanelState::Loading;
-        let _error = PanelState::Error("test error".to_string());
+        let _ = PanelState::Loading;
+        let _ = PanelState::Error("test error".to_string());
         let usage = create_mock_usage_metrics();
-        let _success = PanelState::Success(usage.clone());
-        let _stale = PanelState::Stale(usage);
+        let _ = PanelState::Success(usage.clone());
+        let _ = PanelState::Stale(usage);
     }
 
     #[test]

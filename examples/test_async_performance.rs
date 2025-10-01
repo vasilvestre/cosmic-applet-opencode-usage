@@ -14,11 +14,11 @@ fn main() {
             match reader.get_usage() {
                 Ok(metrics) => {
                     let duration = start.elapsed();
-                    println!("✓ Duration: {:?}", duration);
+                    println!("✓ Duration: {duration:?}");
                     println!("  Files: {}", metrics.interaction_count);
                     println!("  Cost: ${:.2}", metrics.total_cost);
                 }
-                Err(e) => println!("✗ Error: {}", e),
+                Err(e) => println!("✗ Error: {e}"),
             }
 
             // Test 2: Today's usage
@@ -27,11 +27,11 @@ fn main() {
             match reader.get_usage_today() {
                 Ok(metrics) => {
                     let duration = start.elapsed();
-                    println!("✓ Duration: {:?}", duration);
+                    println!("✓ Duration: {duration:?}");
                     println!("  Files: {}", metrics.interaction_count);
                     println!("  Cost: ${:.2}", metrics.total_cost);
                 }
-                Err(e) => println!("✗ Error: {}", e),
+                Err(e) => println!("✗ Error: {e}"),
             }
 
             // Test 3: Switch back to all-time (should use cache)
@@ -40,11 +40,11 @@ fn main() {
             match reader.get_usage() {
                 Ok(metrics) => {
                     let duration = start.elapsed();
-                    println!("✓ Duration: {:?}", duration);
+                    println!("✓ Duration: {duration:?}");
                     println!("  Files: {}", metrics.interaction_count);
                     println!("  Cost: ${:.2}", metrics.total_cost);
                 }
-                Err(e) => println!("✗ Error: {}", e),
+                Err(e) => println!("✗ Error: {e}"),
             }
 
             // Test 4: Multiple rapid switches
@@ -58,7 +58,7 @@ fn main() {
                 }
             }
             let duration = start.elapsed();
-            println!("✓ Total duration for 10 switches: {:?}", duration);
+            println!("✓ Total duration for 10 switches: {duration:?}");
             println!("  Average per switch: {:?}", duration / 10);
 
             println!("\n--- Summary ---");
@@ -68,7 +68,7 @@ fn main() {
             println!("3. Showing loading state while fetch is in progress");
         }
         Err(e) => {
-            println!("✗ Failed to create reader: {}", e);
+            println!("✗ Failed to create reader: {e}");
         }
     }
 }

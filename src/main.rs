@@ -6,7 +6,7 @@ use cosmic_applet_opencode_usage::core::config::AppConfig;
 fn main() -> cosmic::iced::Result {
     // Load config from COSMIC config system, fall back to defaults if not found
     let config = AppConfig::load().unwrap_or_else(|err| {
-        eprintln!("Warning: Failed to load config ({}), using defaults", err);
+        eprintln!("Warning: Failed to load config ({err}), using defaults");
         AppConfig::default()
     });
 

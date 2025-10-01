@@ -27,17 +27,20 @@ pub struct FileMetadata {
     pub modified: SystemTime,
 }
 
-/// Scans OpenCode storage directory for usage part files
+/// Scans `OpenCode` storage directory for usage part files
 #[derive(Debug)]
 pub struct StorageScanner {
     storage_path: PathBuf,
 }
 
 impl StorageScanner {
-    /// Create a new scanner with the default OpenCode storage path
+    /// Create a new scanner with the default `OpenCode` storage path
+    ///
+    /// # Errors
+    /// Returns an error if the HOME environment variable is not set or the storage path doesn't exist.
     pub fn new() -> Result<Self, ScannerError> {
         let home = std::env::var("HOME")
-            .map_err(|e| ScannerError::AccessError(format!("Cannot get HOME: {}", e)))?;
+            .map_err(|e| ScannerError::AccessError(format!("Cannot get HOME: {e}")))?;
 
         let storage_path = PathBuf::from(home).join(".local/share/opencode/storage/part");
 
@@ -45,6 +48,9 @@ impl StorageScanner {
     }
 
     /// Create a scanner with a custom storage path (useful for testing)
+    ///
+    /// # Errors
+    /// Returns an error if the storage path doesn't exist.
     pub fn with_path(storage_path: PathBuf) -> Result<Self, ScannerError> {
         if !storage_path.exists() {
             return Err(ScannerError::DirectoryNotFound(storage_path));
@@ -54,11 +60,14 @@ impl StorageScanner {
     }
 
     /// Scan the storage directory and return paths to all JSON files
+    ///
+    /// # Errors
+    /// Returns an error if the directory cannot be read or accessed.
     pub fn scan(&self) -> Result<Vec<PathBuf>, ScannerError> {
         let json_files = WalkDir::new(&self.storage_path)
             .follow_links(false)
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter_map(|entry| {
                 let path = entry.path();
                 if path.is_file() && path.extension().is_some_and(|ext| ext == "json") {
@@ -73,17 +82,21 @@ impl StorageScanner {
     }
 
     /// Get the storage path
+    #[must_use]
     pub fn storage_path(&self) -> &PathBuf {
         &self.storage_path
     }
 
     /// Scan the storage directory and return file metadata (path + modified time)
+    ///
+    /// # Errors
+    /// Returns an error if the directory cannot be read or accessed.
     pub fn scan_with_metadata(&self) -> Result<Vec<FileMetadata>, ScannerError> {
         // First, collect all directory entries (fast I/O operation)
         let entries: Vec<_> = WalkDir::new(&self.storage_path)
             .follow_links(false)
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .collect();
 
         // Then, process entries in parallel using rayon
@@ -120,6 +133,9 @@ impl StorageScanner {
 
     /// Scan the storage directory and return only files modified after the cutoff time
     /// This is optimized to skip old files during the walk, reducing I/O overhead
+    ///
+    /// # Errors
+    /// Returns an error if the directory cannot be read or accessed.
     pub fn scan_modified_since(
         &self,
         cutoff: SystemTime,
@@ -128,7 +144,7 @@ impl StorageScanner {
         let entries: Vec<_> = WalkDir::new(&self.storage_path)
             .follow_links(false)
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .collect();
 
         // Then, process entries in parallel using rayon, filtering by modification time
@@ -180,7 +196,7 @@ mod tests {
 
     /// Helper to create a temporary test directory
     fn create_test_dir(name: &str) -> PathBuf {
-        let temp_dir = std::env::temp_dir().join(format!("opencode_scanner_test_{}", name));
+        let temp_dir = std::env::temp_dir().join(format!("opencode_scanner_test_{name}"));
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).expect("Failed to create test directory");
         temp_dir
@@ -319,8 +335,7 @@ mod tests {
         for file in &files {
             assert!(
                 file.extension().is_some_and(|ext| ext == "json"),
-                "Found non-JSON file: {:?}",
-                file
+                "Found non-JSON file: {file:?}"
             );
         }
 

@@ -8,7 +8,7 @@ fn main() {
     let mut reader = match OpenCodeUsageReader::new() {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("Error creating reader: {}", e);
+            eprintln!("Error creating reader: {e}");
             return;
         }
     };
@@ -19,12 +19,12 @@ fn main() {
     match reader.get_usage() {
         Ok(metrics) => {
             let duration = start.elapsed();
-            println!("  ✓ Duration: {:?}", duration);
+            println!("  ✓ Duration: {duration:?}");
             println!("  ✓ Total interactions: {}", metrics.interaction_count);
             println!("  ✓ Total input tokens: {}", metrics.total_input_tokens);
         }
         Err(e) => {
-            println!("  ✗ Error: {}", e);
+            println!("  ✗ Error: {e}");
         }
     }
     println!();
@@ -35,12 +35,12 @@ fn main() {
     match reader.get_usage_today() {
         Ok(metrics) => {
             let duration = start.elapsed();
-            println!("  ✓ Duration: {:?}", duration);
+            println!("  ✓ Duration: {duration:?}");
             println!("  ✓ Today's interactions: {}", metrics.interaction_count);
             println!("  ✓ Today's input tokens: {}", metrics.total_input_tokens);
         }
         Err(e) => {
-            println!("  ✗ Error: {}", e);
+            println!("  ✗ Error: {e}");
         }
     }
     println!();
@@ -51,11 +51,11 @@ fn main() {
     match reader.get_usage() {
         Ok(metrics) => {
             let duration = start.elapsed();
-            println!("  ✓ Duration: {:?}", duration);
+            println!("  ✓ Duration: {duration:?}");
             println!("  ✓ Total interactions: {}", metrics.interaction_count);
         }
         Err(e) => {
-            println!("  ✗ Error: {}", e);
+            println!("  ✗ Error: {e}");
         }
     }
     println!();
@@ -66,11 +66,11 @@ fn main() {
     match reader.get_usage_today() {
         Ok(metrics) => {
             let duration = start.elapsed();
-            println!("  ✓ Duration: {:?}", duration);
+            println!("  ✓ Duration: {duration:?}");
             println!("  ✓ Today's interactions: {}", metrics.interaction_count);
         }
         Err(e) => {
-            println!("  ✗ Error: {}", e);
+            println!("  ✗ Error: {e}");
         }
     }
 

@@ -11,11 +11,11 @@ fn main() {
             match reader.get_usage() {
                 Ok(metrics) => {
                     let duration = start.elapsed();
-                    println!("✓ First all-time read: {:?}", duration);
+                    println!("✓ First all-time read: {duration:?}");
                     println!("  Files parsed: {}", metrics.interaction_count);
                     println!("  Total cost: ${:.2}", metrics.total_cost);
                 }
-                Err(e) => println!("✗ Error reading all-time: {}", e),
+                Err(e) => println!("✗ Error reading all-time: {e}"),
             }
 
             // Test 2: Today's usage
@@ -23,11 +23,11 @@ fn main() {
             match reader.get_usage_today() {
                 Ok(metrics) => {
                     let duration = start.elapsed();
-                    println!("\n✓ Today's usage read: {:?}", duration);
+                    println!("\n✓ Today's usage read: {duration:?}");
                     println!("  Files parsed: {}", metrics.interaction_count);
                     println!("  Total cost: ${:.2}", metrics.total_cost);
                 }
-                Err(e) => println!("\n✗ Error reading today: {}", e),
+                Err(e) => println!("\n✗ Error reading today: {e}"),
             }
 
             // Test 3: All-time again (should be cached)
@@ -35,14 +35,14 @@ fn main() {
             match reader.get_usage() {
                 Ok(metrics) => {
                     let duration = start.elapsed();
-                    println!("\n✓ Second all-time read (cached): {:?}", duration);
+                    println!("\n✓ Second all-time read (cached): {duration:?}");
                     println!("  Files parsed: {}", metrics.interaction_count);
                 }
-                Err(e) => println!("\n✗ Error reading all-time: {}", e),
+                Err(e) => println!("\n✗ Error reading all-time: {e}"),
             }
         }
         Err(e) => {
-            println!("Failed to create reader: {}", e);
+            println!("Failed to create reader: {e}");
         }
     }
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Configuration management for the OpenCode usage applet
+//! Configuration management for the `OpenCode` usage applet
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -31,7 +31,7 @@ pub enum ConfigWarning {
 /// Application configuration
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppConfig {
-    /// Path to OpenCode storage directory (optional, defaults to ~/.local/share/opencode/storage/part)
+    /// Path to `OpenCode` storage directory (optional, defaults to ~/.local/share/opencode/storage/part)
     pub storage_path: Option<PathBuf>,
     /// Refresh interval in seconds (default: 60 = 1 minute)
     pub refresh_interval_seconds: u32,
@@ -54,12 +54,16 @@ impl Default for AppConfig {
 
 impl AppConfig {
     /// Creates a new config with default values
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Loads configuration from COSMIC config system
     /// Falls back to defaults if config doesn't exist or can't be loaded
+    ///
+    /// # Errors
+    /// Returns an error if the config system cannot be accessed or initialized.
     pub fn load() -> Result<Self, ConfigError> {
         Self::load_with_id(APP_ID)
     }
@@ -70,7 +74,7 @@ impl AppConfig {
 
         // Try to open config, if it fails, return defaults
         let config = Config::new(app_id, CONFIG_VERSION)
-            .map_err(|e| ConfigError::LoadError(format!("Failed to open config: {}", e)))?;
+            .map_err(|e| ConfigError::LoadError(format!("Failed to open config: {e}")))?;
 
         // Load each field individually, using defaults for missing values
         let default = Self::default();
@@ -90,6 +94,9 @@ impl AppConfig {
     }
 
     /// Saves configuration to COSMIC config system
+    ///
+    /// # Errors
+    /// Returns an error if the config cannot be saved to the COSMIC config system.
     pub fn save(&self) -> Result<(), ConfigError> {
         Self::save_with_id(self, APP_ID)
     }
@@ -99,32 +106,33 @@ impl AppConfig {
         use cosmic::cosmic_config::{Config, ConfigSet};
 
         let config = Config::new(app_id, CONFIG_VERSION)
-            .map_err(|e| ConfigError::SaveError(format!("Failed to open config: {}", e)))?;
+            .map_err(|e| ConfigError::SaveError(format!("Failed to open config: {e}")))?;
 
         // Save each field individually
         config
             .set("storage_path", &self.storage_path)
-            .map_err(|e| ConfigError::SaveError(format!("Failed to save storage_path: {}", e)))?;
+            .map_err(|e| ConfigError::SaveError(format!("Failed to save storage_path: {e}")))?;
         config
             .set("refresh_interval_seconds", self.refresh_interval_seconds)
             .map_err(|e| {
-                ConfigError::SaveError(format!("Failed to save refresh_interval_seconds: {}", e))
+                ConfigError::SaveError(format!("Failed to save refresh_interval_seconds: {e}"))
             })?;
         config
             .set("show_today_usage", self.show_today_usage)
-            .map_err(|e| {
-                ConfigError::SaveError(format!("Failed to save show_today_usage: {}", e))
-            })?;
+            .map_err(|e| ConfigError::SaveError(format!("Failed to save show_today_usage: {e}")))?;
         config
             .set("use_raw_token_display", self.use_raw_token_display)
             .map_err(|e| {
-                ConfigError::SaveError(format!("Failed to save use_raw_token_display: {}", e))
+                ConfigError::SaveError(format!("Failed to save use_raw_token_display: {e}"))
             })?;
 
         Ok(())
     }
 
     /// Validates the configuration, returning any warnings
+    ///
+    /// # Errors
+    /// Returns an error if the configuration has invalid values (e.g., refresh interval out of range).
     pub fn validate(&self) -> Result<Option<ConfigWarning>, ConfigError> {
         validate_refresh_interval(self.refresh_interval_seconds)
     }
@@ -132,6 +140,9 @@ impl AppConfig {
 
 /// Validates refresh interval is within acceptable range (1-3600 seconds)
 /// Returns a warning (not an error) if interval is < 60 seconds
+///
+/// # Errors
+/// Returns an error if the interval is not within 1-3600 seconds.
 pub fn validate_refresh_interval(interval: u32) -> Result<Option<ConfigWarning>, ConfigError> {
     if !(1..=3600).contains(&interval) {
         return Err(ConfigError::InvalidRefreshInterval(interval));
@@ -274,7 +285,7 @@ mod tests {
 
     // Helper to create test-specific app IDs to avoid test interference
     fn test_app_id(test_name: &str) -> String {
-        format!("com.test.CosmicAppletOpencodeUsage.{}", test_name)
+        format!("com.test.CosmicAppletOpencodeUsage.{test_name}")
     }
 
     #[test]

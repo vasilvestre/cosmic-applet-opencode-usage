@@ -12,7 +12,7 @@ pub type MetricsFetchResult =
 /// Messages that can be sent to update the application state
 #[derive(Debug, Clone)]
 pub enum Message {
-    /// Trigger a metrics fetch from OpenCode usage files
+    /// Trigger a metrics fetch from `OpenCode` usage files
     FetchMetrics,
     /// Metrics fetch completed (success or error)
     /// Contains main metrics, optionally today's metrics, and optionally month metrics for panel display
@@ -27,7 +27,7 @@ pub enum Message {
     CloseSettings,
     /// Update refresh interval in settings
     UpdateRefreshInterval(u32),
-    /// Toggle show_today_usage setting
+    /// Toggle `show_today_usage` setting
     ToggleShowTodayUsage(bool),
     /// Toggle raw token display setting
     ToggleRawTokenDisplay(bool),
@@ -35,7 +35,7 @@ pub enum Message {
     SaveConfig,
     /// Toggle popup visibility
     TogglePopup,
-    /// Select a specific display mode (Today, Month, or AllTime)
+    /// Select a specific display mode (Today, Month, or `AllTime`)
     SelectDisplayMode(DisplayMode),
     /// Periodic timer tick for auto-refresh
     Tick,
