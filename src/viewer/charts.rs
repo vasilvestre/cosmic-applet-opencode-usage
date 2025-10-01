@@ -256,8 +256,8 @@ impl canvas::Program<Message, Theme, Renderer> for TokenUsageChart {
 
 /// Creates a token usage chart widget.
 #[must_use]
-pub fn token_usage_chart<'a>(snapshots: Vec<UsageSnapshot>) -> Element<'a, Message> {
-    let chart = TokenUsageChart::new(&snapshots);
+pub fn token_usage_chart<'a>(snapshots: &[UsageSnapshot]) -> Element<'a, Message> {
+    let chart = TokenUsageChart::new(snapshots);
     Canvas::new(chart)
         .width(Length::Fill)
         .height(Length::Fixed(300.0))

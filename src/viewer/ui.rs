@@ -293,7 +293,7 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
             content = content
                 .push(text("").size(20)) // Spacer
                 .push(text("30-Day History").size(20))
-                .push(charts::token_usage_chart(snapshots));
+                .push(charts::token_usage_chart(&snapshots));
         }
         Ok(_) => {
             // No data for chart range
