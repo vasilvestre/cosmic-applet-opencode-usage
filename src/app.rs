@@ -216,12 +216,6 @@ impl OpenCodeMonitorApplet {
         }
     }
 
-    /// Get the tooltip text to display
-    fn get_tooltip_text(&self) -> String {
-        use crate::ui::formatters::format_tooltip;
-        format_tooltip(self.state.last_update)
-    }
-
     /// Get the icon name based on current state
     fn get_state_icon(&self) -> &'static str {
         match &self.state.panel_state {
