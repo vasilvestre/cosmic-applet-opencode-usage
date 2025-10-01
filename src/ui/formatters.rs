@@ -68,6 +68,16 @@ pub fn format_panel_display(usage: &UsageMetrics) -> String {
     format!("{}/{}", tokens, cost)
 }
 
+/// Format comprehensive panel display with all metrics (e.g., "$1.2 | 3x | 10k/5k")
+/// Format: Cost | Interactions | InputTokens/OutputTokens
+pub fn format_panel_display_detailed(usage: &UsageMetrics) -> String {
+    let cost = format_cost_compact(usage.total_cost);
+    let interactions = usage.interaction_count;
+    let input_tokens = format_tokens_compact(usage.total_input_tokens);
+    let output_tokens = format_tokens_compact(usage.total_output_tokens);
+    format!("{} | {}x | {}/{}", cost, interactions, input_tokens, output_tokens)
+}
+
 /// Get the primary metric to display (total cost)
 pub fn get_primary_metric(usage: &UsageMetrics) -> u64 {
     // Convert cost to cents for display as integer
@@ -212,5 +222,50 @@ mod tests {
             timestamp: std::time::SystemTime::now(),
         };
         assert_eq!(format_panel_display(&usage), "750k/$12");
+    }
+
+    #[test]
+    fn test_format_panel_display_detailed_small() {
+        let usage = UsageMetrics {
+            total_input_tokens: 100,
+            total_output_tokens: 50,
+            total_reasoning_tokens: 0,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 0.05,
+            interaction_count: 1,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_display_detailed(&usage), "$0.05 | 1x | 100/50");
+    }
+
+    #[test]
+    fn test_format_panel_display_detailed_medium() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 0,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 15,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_display_detailed(&usage), "$1.2 | 15x | 10k/5k");
+    }
+
+    #[test]
+    fn test_format_panel_display_detailed_large() {
+        let usage = UsageMetrics {
+            total_input_tokens: 25_000_000,
+            total_output_tokens: 10_000_000,
+            total_reasoning_tokens: 0,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 125.50,
+            interaction_count: 1234,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_display_detailed(&usage), "$126 | 1234x | 25M/10M");
     }
 }

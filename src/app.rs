@@ -7,7 +7,7 @@ use cosmic::{
         window,
         platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup},
     },
-    widget::{button, checkbox, column, row, scrollable, text, text_input},
+    widget::{button, checkbox, column, icon, row, scrollable, text, text_input},
 };
 
 use crate::core::config::{AppConfig, ConfigError, ConfigWarning, validate_refresh_interval};
@@ -404,15 +404,19 @@ impl Application for OpenCodeMonitorApplet {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        use crate::ui::formatters::format_panel_display;
+        use crate::ui::formatters::format_panel_display_detailed;
         
-        // If show_today_usage is enabled and we have today's data, show cost and tokens as button
+        // If show_today_usage is enabled and we have today's data, show icon + detailed metrics
         if self.state.config.show_today_usage {
             if let Some(today_usage) = &self.state.today_usage {
-                let display_text = format_panel_display(today_usage);
-                // Use applet.text() with Text button class for proper panel text styling
+                let display_text = format_panel_display_detailed(today_usage);
+                // Show icon + detailed text in a row
                 return button::custom(
-                    self.core.applet.text(display_text)
+                    row()
+                        .push(icon::from_name(self.get_state_icon()).size(16))
+                        .push(self.core.applet.text(display_text))
+                        .spacing(8)
+                        .align_y(cosmic::iced_core::Alignment::Center)
                 )
                 .on_press_down(Message::TogglePopup)
                 .class(cosmic::theme::Button::Text)
