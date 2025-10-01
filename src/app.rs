@@ -16,10 +16,13 @@ use tokio::{sync::watch, time};
 
 static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
+use crate::core::collector::DataCollector;
 use crate::core::config::{validate_refresh_interval, AppConfig, ConfigError, ConfigWarning};
+use crate::core::database::DatabaseManager;
 use crate::core::opencode::OpenCodeUsageReader;
 use crate::ui::state::{AppState, DisplayMode, PanelState};
 use crate::ui::Message;
+use std::sync::Arc;
 
 /// `OpenCode` usage monitor applet structure
 pub struct OpenCodeMonitorApplet {
@@ -29,6 +32,8 @@ pub struct OpenCodeMonitorApplet {
     state: AppState,
     /// `OpenCode` usage reader
     reader: OpenCodeUsageReader,
+    /// Data collector for automatic snapshot management
+    data_collector: Option<DataCollector>,
     /// Settings UI state
     settings_dialog_open: bool,
     temp_refresh_interval: u32,
@@ -62,10 +67,24 @@ impl OpenCodeMonitorApplet {
         // Create watch channel for refresh interval updates
         let (refresh_interval_tx, _rx) = watch::channel(config.refresh_interval_seconds);
 
+        // Initialize data collector with database
+        let data_collector = match DatabaseManager::new() {
+            Ok(db_manager) => {
+                eprintln!("[DataCollector] Database initialized successfully");
+                Some(DataCollector::new(Arc::new(db_manager)))
+            }
+            Err(e) => {
+                eprintln!("[DataCollector] Failed to initialize database: {e}");
+                eprintln!("[DataCollector] Continuing without automatic data collection");
+                None
+            }
+        };
+
         Ok(Self {
             core: Core::default(),
             state: AppState::new(config),
             reader,
+            data_collector,
             settings_dialog_open: false,
             temp_refresh_interval,
             temp_refresh_interval_str: temp_refresh_interval.to_string(),
@@ -154,6 +173,24 @@ impl OpenCodeMonitorApplet {
             Message::MetricsFetched(boxed_result) => match *boxed_result {
                 Ok((usage, today_opt, month_opt)) => {
                     eprintln!("[MetricsFetched] Received successful metrics data");
+
+                    // Attempt to save snapshot using data collector
+                    if let Some(ref collector) = self.data_collector {
+                        match collector.collect_and_save(&usage) {
+                            Ok(true) => {
+                                eprintln!("[MetricsFetched] Snapshot saved successfully");
+                            }
+                            Ok(false) => {
+                                eprintln!("[MetricsFetched] Snapshot already saved today");
+                            }
+                            Err(e) => {
+                                eprintln!("[MetricsFetched] Failed to save snapshot: {e}");
+                                // Continue despite error - don't crash the applet
+                            }
+                        }
+                    } else {
+                        eprintln!("[MetricsFetched] Data collector not available, skipping snapshot");
+                    }
 
                     // If we're in Month mode, the main usage is the month data - cache it
                     if self.state.display_mode == DisplayMode::Month {
@@ -599,10 +636,24 @@ impl Application for OpenCodeMonitorApplet {
         // Create watch channel for refresh interval updates
         let (refresh_interval_tx, _rx) = watch::channel(flags.refresh_interval_seconds);
 
+        // Initialize data collector with database
+        let data_collector = match DatabaseManager::new() {
+            Ok(db_manager) => {
+                eprintln!("[DataCollector] Database initialized successfully");
+                Some(DataCollector::new(Arc::new(db_manager)))
+            }
+            Err(e) => {
+                eprintln!("[DataCollector] Failed to initialize database: {e}");
+                eprintln!("[DataCollector] Continuing without automatic data collection");
+                None
+            }
+        };
+
         let applet = Self {
             core,
             state: AppState::new(flags),
             reader,
+            data_collector,
             settings_dialog_open: false,
             temp_refresh_interval,
             temp_refresh_interval_str: temp_refresh_interval.to_string(),
@@ -754,6 +805,7 @@ mod tests {
         // May fail if OpenCode directory doesn't exist, which is OK for this test
         if let Ok(applet) = applet {
             assert!(matches!(applet.state.panel_state, PanelState::Loading));
+            // Data collector may or may not be initialized depending on database availability
         }
     }
 

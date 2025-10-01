@@ -40,20 +40,20 @@ fn format_cost(cost: f64) -> String {
 fn format_change(current: i64, previous: i64) -> (String, String) {
     if previous == 0 {
         if current == 0 {
-            return ("0%".to_string(), "→".to_string());
+            return ("0%".to_string(), "-".to_string());
         }
-        return ("+∞%".to_string(), "↑".to_string());
+        return ("+INF%".to_string(), "UP".to_string());
     }
 
     #[allow(clippy::cast_precision_loss)]
     let change_pct = ((current - previous) as f64 / previous as f64) * 100.0;
     
     let arrow = if change_pct > 0.0 {
-        "↑"
+        "UP"
     } else if change_pct < 0.0 {
-        "↓"
+        "DN"
     } else {
-        "→"
+        "--"
     };
 
     (format!("{change_pct:+.1}%"), arrow.to_string())
@@ -63,19 +63,19 @@ fn format_change(current: i64, previous: i64) -> (String, String) {
 fn format_cost_change(current: f64, previous: f64) -> (String, String) {
     if previous == 0.0 {
         if current == 0.0 {
-            return ("0%".to_string(), "→".to_string());
+            return ("0%".to_string(), "-".to_string());
         }
-        return ("+∞%".to_string(), "↑".to_string());
+        return ("+INF%".to_string(), "UP".to_string());
     }
 
     let change_pct = ((current - previous) / previous) * 100.0;
     
     let arrow = if change_pct > 0.0 {
-        "↑"
+        "UP"
     } else if change_pct < 0.0 {
-        "↓"
+        "DN"
     } else {
-        "→"
+        "--"
     };
 
     (format!("{change_pct:+.1}%"), arrow.to_string())
@@ -90,20 +90,34 @@ fn comparison_row(
     previous: i64,
 ) -> cosmic::Element<'static, Message> {
     let (change_text, arrow) = format_change(current, previous);
+    let current_str = format_number(current);
+    let previous_str = format_number(previous);
+    
+    eprintln!("DEBUG comparison_row: label={label}, current={current}, previous={previous}");
+    eprintln!("DEBUG   formatted: current={current_str}, previous={previous_str}");
+    eprintln!("DEBUG   change: arrow={arrow}, change_text={change_text}");
+    
+    // Create all text elements with explicit String ownership
+    let label_text = format!("{icon} {label}");
+    let this_week_label = "This Week: ".to_string();
+    let last_week_text = format!("(Last: {previous_str})");
     
     column()
         .push(
-            text(format!("{icon} {label}"))
+            text(label_text)
                 .size(16)
                 .width(Length::Fill)
         )
         .push(
             row()
-                .push(text("This Week: ").size(14).width(Length::Fixed(100.0)))
-                .push(text(format_number(current)).size(14).width(Length::Fixed(120.0)))
-                .push(text(arrow).size(16).width(Length::Fixed(30.0)))
-                .push(text(change_text).size(14).width(Length::Fixed(80.0)))
-                .push(text(format!("(Last: {})", format_number(previous))).size(12))
+                .push(text(this_week_label).size(14))
+                .push(text(current_str).size(14))
+                .push(text(" ").size(14))
+                .push(text(arrow).size(16))
+                .push(text(" ").size(14))
+                .push(text(change_text).size(14))
+                .push(text(" ").size(14))
+                .push(text(last_week_text).size(12))
                 .spacing(8)
         )
         .spacing(5)
@@ -119,20 +133,29 @@ fn cost_comparison_row(
     previous: f64,
 ) -> cosmic::Element<'static, Message> {
     let (change_text, arrow) = format_cost_change(current, previous);
+    let current_str = format_cost(current);
+    let previous_str = format_cost(previous);
+    
+    let label_text = format!("{icon} {label}");
+    let this_week_label = "This Week: ".to_string();
+    let last_week_text = format!("(Last: {previous_str})");
     
     column()
         .push(
-            text(format!("{icon} {label}"))
+            text(label_text)
                 .size(16)
                 .width(Length::Fill)
         )
         .push(
             row()
-                .push(text("This Week: ").size(14).width(Length::Fixed(100.0)))
-                .push(text(format_cost(current)).size(14).width(Length::Fixed(120.0)))
-                .push(text(arrow).size(16).width(Length::Fixed(30.0)))
-                .push(text(change_text).size(14).width(Length::Fixed(80.0)))
-                .push(text(format!("(Last: {})", format_cost(previous))).size(12))
+                .push(text(this_week_label).size(14))
+                .push(text(current_str).size(14))
+                .push(text(" ").size(14))
+                .push(text(arrow).size(16))
+                .push(text(" ").size(14))
+                .push(text(change_text).size(14))
+                .push(text(" ").size(14))
+                .push(text(last_week_text).size(12))
                 .spacing(8)
         )
         .spacing(5)
@@ -150,8 +173,31 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
     let last_week_start = this_week_start - chrono::Duration::days(7);
 
     // Fetch data
-    let this_week = repository.get_week_summary(this_week_start).ok();
-    let last_week = repository.get_week_summary(last_week_start).ok();
+    eprintln!("DEBUG: Fetching this week summary starting {this_week_start}");
+    let this_week = match repository.get_week_summary(this_week_start) {
+        Ok(summary) => {
+            eprintln!("DEBUG: This week summary: input={}, output={}, cost={}", 
+                summary.total_input_tokens, summary.total_output_tokens, summary.total_cost);
+            Some(summary)
+        },
+        Err(e) => {
+            eprintln!("ERROR: Failed to get this week summary: {e}");
+            None
+        }
+    };
+    
+    eprintln!("DEBUG: Fetching last week summary starting {last_week_start}");
+    let last_week = match repository.get_week_summary(last_week_start) {
+        Ok(summary) => {
+            eprintln!("DEBUG: Last week summary: input={}, output={}, cost={}", 
+                summary.total_input_tokens, summary.total_output_tokens, summary.total_cost);
+            Some(summary)
+        },
+        Err(e) => {
+            eprintln!("ERROR: Failed to get last week summary: {e}");
+            None
+        }
+    };
 
     let mut content = column()
         .push(
@@ -284,15 +330,15 @@ mod tests {
     #[test]
     fn test_format_change() {
         let (pct, arrow) = format_change(120, 100);
-        assert_eq!(arrow, "↑");
+        assert_eq!(arrow, "UP");
         assert!(pct.contains("20"));
 
         let (pct, arrow) = format_change(80, 100);
-        assert_eq!(arrow, "↓");
+        assert_eq!(arrow, "DN");
         assert!(pct.contains("-20"));
 
         let (pct, arrow) = format_change(100, 100);
-        assert_eq!(arrow, "→");
+        assert_eq!(arrow, "--");
         assert_eq!(pct, "+0.0%");
     }
 }
