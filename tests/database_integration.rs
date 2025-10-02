@@ -128,7 +128,7 @@ fn test_concurrent_read_access() {
                         row.get(0)
                     })
                     .unwrap_or(0);
-                assert_eq!(version, 1, "Thread {i} got unexpected version");
+                assert_eq!(version, 2, "Thread {i} got unexpected version");
 
                 // Also read from usage_snapshots
                 let count: i32 = conn
@@ -258,12 +258,12 @@ fn test_schema_version_recorded() {
         )
         .unwrap();
 
-    assert_eq!(version, 1);
+    assert_eq!(version, 2);
 
     // Verify timestamp is valid
     let applied_at: String = conn
         .query_row(
-            "SELECT applied_at FROM schema_version WHERE version = 1",
+            "SELECT applied_at FROM schema_version WHERE version = 2",
             [],
             |row| row.get(0),
         )
@@ -340,5 +340,5 @@ fn test_reopening_database_preserves_schema() {
         })
         .unwrap();
 
-    assert_eq!(version, 1);
+    assert_eq!(version, 2);
 }
