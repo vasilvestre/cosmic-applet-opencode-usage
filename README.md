@@ -45,6 +45,23 @@ After installation, the applet will appear in your COSMIC panel. Click it to vie
 - Estimated costs
 - Last updated timestamp
 
+## Utility Tools
+
+The project includes several utility examples for database management:
+
+### Backfill Historical Data
+If you're starting fresh or need to populate historical data:
+```sh
+cargo run --example backfill_history
+```
+This scans your OpenCode storage files and creates daily snapshots based on file modification times, enabling proper week-over-week comparisons in the viewer.
+
+### Other Utilities
+- `check_database` - View database contents and verify snapshots
+- `collect_now` - Manually trigger a data collection
+- `clean_database` - Remove all snapshots from the database
+- `database_usage` - Check database file size and statistics
+
 ## Development
 
 This project follows Test-Driven Development (TDD) principles. See the `features/` directory for detailed specifications and implementation tasks.
