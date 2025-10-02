@@ -31,10 +31,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    println!("\n🗑️  Removing database file...");
-    fs::remove_file(&db_path)?;
+    println!("\n🗑️  Removing database files...");
     
-    println!("✅ Database removed successfully!");
+    // Remove main database file
+    if db_path.exists() {
+        fs::remove_file(&db_path)?;
+        println!("  ✓ Removed {}", db_path.display());
+    }
+    
+    // Remove WAL file
+    let wal_path = db_path.with_extension("db-wal");
+    if wal_path.exists() {
+        fs::remove_file(&wal_path)?;
+        println!("  ✓ Removed {}", wal_path.display());
+    }
+    
+    // Remove SHM file
+    let shm_path = db_path.with_extension("db-shm");
+    if shm_path.exists() {
+        fs::remove_file(&shm_path)?;
+        println!("  ✓ Removed {}", shm_path.display());
+    }
+    
+    println!("\n✅ Database cleaned successfully!");
     println!("\nThe database will be recreated on next scan or viewer launch.");
     println!("Run the data collection to populate with real usage data.");
 
