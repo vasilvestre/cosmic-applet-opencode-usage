@@ -89,26 +89,28 @@ pub fn format_panel_display(usage: &UsageMetrics) -> String {
     format!("{tokens}/{cost}")
 }
 
-/// Format comprehensive panel display with all metrics (e.g., "$1.2 | 3x | 10k/5k")
-/// Format: Cost | Interactions | InputTokens/OutputTokens
+/// Format comprehensive panel display with all metrics (e.g., "$1.2 | 3x | 10k/5k/2k")
+/// Format: Cost | Interactions | InputTokens/OutputTokens/ReasoningTokens
 #[must_use]
 pub fn format_panel_display_detailed(usage: &UsageMetrics) -> String {
     let cost = format_cost_compact(usage.total_cost);
     let interactions = usage.interaction_count;
     let input_tokens = format_tokens_compact(usage.total_input_tokens);
     let output_tokens = format_tokens_compact(usage.total_output_tokens);
-    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}")
+    let reasoning_tokens = format_tokens_compact(usage.total_reasoning_tokens);
+    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}/{reasoning_tokens}")
 }
 
-/// Format comprehensive panel display with raw token values (e.g., "$1.2 | 3x | 10000/5000")
-/// Format: Cost | Interactions | InputTokens/OutputTokens (no K/M suffixes)
+/// Format comprehensive panel display with raw token values (e.g., "$1.2 | 3x | 10000/5000/2000")
+/// Format: Cost | Interactions | InputTokens/OutputTokens/ReasoningTokens (no K/M suffixes)
 #[must_use]
 pub fn format_panel_display_detailed_raw(usage: &UsageMetrics) -> String {
     let cost = format_cost_compact(usage.total_cost);
     let interactions = usage.interaction_count;
     let input_tokens = format_tokens_raw(usage.total_input_tokens);
     let output_tokens = format_tokens_raw(usage.total_output_tokens);
-    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}")
+    let reasoning_tokens = format_tokens_raw(usage.total_reasoning_tokens);
+    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}/{reasoning_tokens}")
 }
 
 /// Get the primary metric to display (total cost)
@@ -316,7 +318,7 @@ mod tests {
             interaction_count: 1,
             timestamp: std::time::SystemTime::now(),
         };
-        assert_eq!(format_panel_display_detailed(&usage), "$0.05 | 1x | 100/50");
+        assert_eq!(format_panel_display_detailed(&usage), "$0.05 | 1x | 100/50/0");
     }
 
     #[test]
@@ -331,7 +333,7 @@ mod tests {
             interaction_count: 15,
             timestamp: std::time::SystemTime::now(),
         };
-        assert_eq!(format_panel_display_detailed(&usage), "$1.2 | 15x | 10k/5k");
+        assert_eq!(format_panel_display_detailed(&usage), "$1.2 | 15x | 10k/5k/0");
     }
 
     #[test]
@@ -348,8 +350,23 @@ mod tests {
         };
         assert_eq!(
             format_panel_display_detailed(&usage),
-            "$126 | 1234x | 25M/10M"
+            "$126 | 1234x | 25M/10M/0"
         );
+    }
+
+    #[test]
+    fn test_format_panel_display_detailed_with_reasoning() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 15,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_display_detailed(&usage), "$1.2 | 15x | 10k/5k/2k");
     }
 
     #[test]
@@ -426,7 +443,7 @@ mod tests {
         };
         let result = format_panel_display_detailed_raw(&usage);
         // Small values should not have separators
-        assert_eq!(result, "$0.05 | 1x | 100/50");
+        assert_eq!(result, "$0.05 | 1x | 100/50/0");
     }
 
     #[test]

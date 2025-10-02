@@ -513,6 +513,12 @@ impl OpenCodeMonitorApplet {
                             .push(text(format_number(usage.total_output_tokens)).size(14))
                             .spacing(5),
                     )
+                    .push(
+                        row()
+                            .push(text("Reasoning Tokens: ").size(14))
+                            .push(text(format_number(usage.total_reasoning_tokens)).size(14))
+                            .spacing(5),
+                    )
                     .push(text("").size(8))
                     .push(text(format_tooltip(self.state.last_update)).size(12))
                     .push(text("").size(8))
