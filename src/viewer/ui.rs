@@ -139,7 +139,7 @@ fn render_chart_image(chart_image: &RgbaImage) -> Element<'static, Message> {
     container(cosmic_image(handle))
         .width(Length::Shrink)
         .height(Length::Shrink)
-        .center_x(200.0)
+        .center_x(Length::Fill)
         .into()
 }
 
@@ -154,7 +154,7 @@ pub fn view_content<'a>(
     week_starts: (NaiveDate, NaiveDate),
     chart_image: &'a RgbaImage,
 ) -> Element<'a, Message> {
-    let (this_week_start, last_week_start) = week_starts;
+    let (_this_week_start, last_week_start) = week_starts;
 
     let mut content = column()
         .push(
@@ -298,7 +298,7 @@ pub fn view_content<'a>(
     container(content)
         .width(Length::Fill)
         .height(Length::Fill)
-        .center_x(200.0)
+        .center_x(Length::Fill)
         .into()
 }
 
