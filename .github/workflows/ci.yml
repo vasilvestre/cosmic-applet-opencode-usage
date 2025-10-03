@@ -27,3 +27,15 @@ jobs:
         with:
           toolchain: 1.85.1
           args: --all --all-targets --all-features
+
+  testing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.85.1
+      - name: install dependencies
+        run: sudo apt update && sudo apt install -y libxkbcommon-dev libwayland-dev libdbus-1-dev libpulse-dev libpipewire-0.3-dev libinput-dev
+      - name: Run tests
+        run: cargo test -- --test-threads=1

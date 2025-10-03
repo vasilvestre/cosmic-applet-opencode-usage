@@ -371,20 +371,22 @@ impl OpenCodeMonitorApplet {
                     // Don't block the UI if save fails - just log it
                 }
 
-                // Clear today's usage cache if the panel metrics are now empty
-                if self.temp_panel_metrics.is_empty() {
-                    self.state.clear_today_usage();
-                }
-
                 // Success: close settings
                 self.settings_dialog_open = false;
                 self.popup = None;
 
-                // Trigger a refresh to update the panel display based on the new settings:
-                // - If panel_metric was changed, fetch appropriate data
-                // - If use_raw_token_display changed, update the display format
-                // - Any other config changes that affect the display
-                Task::done(cosmic::Action::App(Message::FetchMetrics))
+                // Clear today's usage cache if the panel metrics are now empty
+                // and don't trigger a fetch (no data to display)
+                if self.temp_panel_metrics.is_empty() {
+                    self.state.clear_today_usage();
+                    Task::none()
+                } else {
+                    // Trigger a refresh to update the panel display based on the new settings:
+                    // - If panel_metric was changed, fetch appropriate data
+                    // - If use_raw_token_display changed, update the display format
+                    // - Any other config changes that affect the display
+                    Task::done(cosmic::Action::App(Message::FetchMetrics))
+                }
             }
             Message::TogglePopup => {
                 eprintln!("DEBUG: TogglePopup message received");
