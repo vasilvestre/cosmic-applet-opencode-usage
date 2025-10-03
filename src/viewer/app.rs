@@ -2,7 +2,10 @@
 
 //! Viewer application core logic and COSMIC Application trait implementation.
 
-use crate::core::database::{repository::{UsageRepository, WeekSummary}, DatabaseManager};
+use crate::core::database::{
+    repository::{UsageRepository, WeekSummary},
+    DatabaseManager,
+};
 use chrono::{Datelike, NaiveDate};
 use cosmic::{app::Core, Application, Element};
 use image::RgbaImage;
@@ -71,10 +74,13 @@ impl Application for ViewerApp {
         // Load chart data for last 30 days
         let end_date = today;
         let start_date = today - chrono::Duration::days(30);
-        let chart_snapshots = repository.get_range(start_date, end_date).unwrap_or_default();
+        let chart_snapshots = repository
+            .get_range(start_date, end_date)
+            .unwrap_or_default();
 
         // Pre-render chart image once (800x400 size)
-        let chart_image = crate::viewer::charts::generate_token_usage_chart(&chart_snapshots, 800, 400);
+        let chart_image =
+            crate::viewer::charts::generate_token_usage_chart(&chart_snapshots, 800, 400);
 
         // Configure window title
         core.window.header_title = "OpenCode Usage History".to_string();

@@ -5,6 +5,7 @@
 use crate::core::config::AppConfig;
 use crate::core::opencode::UsageMetrics;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Represents the current state of the panel display
 #[derive(Debug, Clone)]
@@ -56,7 +57,7 @@ impl PanelState {
 }
 
 /// Display mode for usage metrics
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DisplayMode {
     /// Show all-time usage data
     AllTime,
@@ -87,11 +88,12 @@ impl AppState {
     /// Creates a new `AppState` with Loading state
     #[must_use]
     pub fn new(config: AppConfig) -> Self {
+        let display_mode = config.display_mode;
         AppState {
             panel_state: PanelState::Loading,
             last_update: None,
             config,
-            display_mode: DisplayMode::Today,
+            display_mode,
             today_usage: None,
             month_usage: None,
         }
@@ -168,6 +170,7 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::config::PanelMetric;
     use std::time::SystemTime;
 
     fn create_mock_usage_metrics() -> UsageMetrics {
@@ -187,8 +190,9 @@ mod tests {
         AppConfig {
             storage_path: None, // Use default OpenCode storage path
             refresh_interval_seconds: 60,
-            show_today_usage: false,
+            panel_metrics: vec![PanelMetric::Cost],
             use_raw_token_display: false,
+            display_mode: DisplayMode::Today,
         }
     }
 
@@ -308,8 +312,9 @@ mod tests {
         let invalid_config = AppConfig {
             storage_path: None,
             refresh_interval_seconds: 0, // Invalid: below minimum of 1
-            show_today_usage: false,
+            panel_metrics: vec![PanelMetric::Cost],
             use_raw_token_display: false,
+            display_mode: DisplayMode::Today,
         };
         let state = AppState::new(invalid_config);
 
@@ -321,6 +326,23 @@ mod tests {
         let config = create_mock_config();
         let state = AppState::new(config);
         assert_eq!(state.display_mode, DisplayMode::Today);
+    }
+
+    #[test]
+    fn test_display_mode_initialized_from_config() {
+        // Test that AppState::new reads display_mode from config
+        let mut config = create_mock_config();
+        config.display_mode = DisplayMode::Month;
+
+        let state = AppState::new(config);
+        assert_eq!(state.display_mode, DisplayMode::Month);
+
+        // Test with AllTime
+        let mut config2 = create_mock_config();
+        config2.display_mode = DisplayMode::AllTime;
+
+        let state2 = AppState::new(config2);
+        assert_eq!(state2.display_mode, DisplayMode::AllTime);
     }
 
     #[test]
@@ -381,6 +403,44 @@ mod tests {
 
         state.clear_month_usage();
         assert!(state.month_usage.is_none());
+    }
+
+    // DisplayMode serialization tests (TDD - RED PHASE)
+    #[test]
+    fn test_display_mode_can_be_serialized() {
+        use serde_json;
+
+        let mode = DisplayMode::Today;
+        let json = serde_json::to_string(&mode).expect("should serialize DisplayMode::Today");
+        assert!(!json.is_empty());
+
+        let mode = DisplayMode::Month;
+        let json = serde_json::to_string(&mode).expect("should serialize DisplayMode::Month");
+        assert!(!json.is_empty());
+
+        let mode = DisplayMode::AllTime;
+        let json = serde_json::to_string(&mode).expect("should serialize DisplayMode::AllTime");
+        assert!(!json.is_empty());
+    }
+
+    #[test]
+    fn test_display_mode_can_be_deserialized() {
+        use serde_json;
+
+        let json = serde_json::to_string(&DisplayMode::Today).unwrap();
+        let mode: DisplayMode =
+            serde_json::from_str(&json).expect("should deserialize to DisplayMode::Today");
+        assert_eq!(mode, DisplayMode::Today);
+
+        let json = serde_json::to_string(&DisplayMode::Month).unwrap();
+        let mode: DisplayMode =
+            serde_json::from_str(&json).expect("should deserialize to DisplayMode::Month");
+        assert_eq!(mode, DisplayMode::Month);
+
+        let json = serde_json::to_string(&DisplayMode::AllTime).unwrap();
+        let mode: DisplayMode =
+            serde_json::from_str(&json).expect("should deserialize to DisplayMode::AllTime");
+        assert_eq!(mode, DisplayMode::AllTime);
     }
 
     // PanelState tests

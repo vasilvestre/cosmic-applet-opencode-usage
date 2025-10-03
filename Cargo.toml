@@ -39,6 +39,9 @@ git = "https://github.com/pop-os/libcosmic.git"
 default-features = false
 features = ["applet", "wayland"]
 
+[dependencies.cosmic-config]
+git = "https://github.com/pop-os/libcosmic.git"
+
 [dependencies.i18n-embed]
 version = "0.16.0"
 features = ["fluent-system", "desktop-requester"]

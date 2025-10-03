@@ -4,6 +4,7 @@
 
 use crate::core::database::repository::WeekSummary;
 use crate::viewer::Message;
+use ::image::RgbaImage;
 use chrono::NaiveDate;
 use cosmic::{
     iced::{Alignment, Length},
@@ -11,7 +12,6 @@ use cosmic::{
     widget::{column, container, image as cosmic_image, row, text},
     Element,
 };
-use ::image::RgbaImage;
 
 /// Formats a number with thousands separators.
 fn format_number(n: i64) -> String {
@@ -133,9 +133,9 @@ fn render_chart_image(chart_image: &RgbaImage) -> Element<'static, Message> {
     let width = chart_image.width();
     let height = chart_image.height();
     let pixels = chart_image.as_raw().clone();
-    
+
     let handle = Handle::from_rgba(width, height, pixels);
-    
+
     container(cosmic_image(handle))
         .width(Length::Shrink)
         .height(Length::Shrink)
@@ -226,7 +226,7 @@ pub fn view_content<'a>(
             content = content
                 .push(text("No data available for last week").size(14))
                 .push(text("").size(10));
-            
+
             let metrics_row = row()
                 .push(
                     column()
