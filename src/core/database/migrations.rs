@@ -37,7 +37,7 @@ pub fn get_migrations() -> Vec<Migration> {
         Migration {
             version: 2,
             description: "Add UNIQUE constraint to date column to prevent duplicates".to_string(),
-            sql: r#"
+            sql: r"
 -- Create new table with UNIQUE constraint
 CREATE TABLE usage_snapshots_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +67,7 @@ ALTER TABLE usage_snapshots_new RENAME TO usage_snapshots;
 
 -- Recreate index
 CREATE INDEX IF NOT EXISTS idx_usage_snapshots_date ON usage_snapshots(date);
-"#
+"
                 .to_string(),
         },
     ]

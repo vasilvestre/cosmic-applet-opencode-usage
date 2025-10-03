@@ -9,7 +9,7 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 /// Prepares daily token usage data for charting.
 ///
-/// Returns a vector of (date, input_tokens, output_tokens, reasoning_tokens) tuples
+/// Returns a vector of (date, `input_tokens`, `output_tokens`, `reasoning_tokens`) tuples
 /// sorted by date ascending.
 #[must_use]
 pub fn prepare_daily_tokens_data(snapshots: &[UsageSnapshot]) -> Vec<(NaiveDate, i64, i64, i64)> {
@@ -51,7 +51,12 @@ pub fn prepare_daily_interactions_data(snapshots: &[UsageSnapshot]) -> Vec<(Naiv
 ///
 /// This creates a pre-rendered image that can be displayed without per-frame rendering,
 /// eliminating scroll lag issues.
+///
+/// # Panics
+///
+/// Panics if the pixmap or image buffer creation fails due to invalid dimensions.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn generate_token_usage_chart(
     snapshots: &[UsageSnapshot],
     width: u32,
@@ -89,13 +94,17 @@ pub fn generate_token_usage_chart(
     #[allow(clippy::cast_precision_loss)]
     let max_tokens_f = max_tokens as f32;
 
-    let mut paint = Paint::default();
-    paint.anti_alias = true;
+    let mut paint = Paint {
+        anti_alias: true,
+        ..Default::default()
+    };
 
     // Draw axes
     paint.set_color(Color::from_rgba8(180, 180, 180, 255));
-    let mut stroke = Stroke::default();
-    stroke.width = 1.0;
+    let mut stroke = Stroke {
+        width: 1.0,
+        ..Default::default()
+    };
 
     // X-axis
     let mut pb = PathBuilder::new();
@@ -200,7 +209,7 @@ pub fn generate_token_usage_chart(
 fn pixmap_to_rgba_image(pixmap: &Pixmap) -> RgbaImage {
     let width = pixmap.width();
     let height = pixmap.height();
-    
+
     // Direct buffer conversion - more efficient than per-pixel copying
     RgbaImage::from_raw(width, height, pixmap.data().to_vec())
         .expect("Failed to create RgbaImage from pixmap data")
@@ -339,18 +348,34 @@ mod tests {
         assert_eq!(img.width(), 800);
         assert_eq!(img.height(), 400);
 
-        // Verify that the image doesn't contain NaN values by checking all pixels are valid
-        // NaN values in coordinates would cause rendering artifacts
+        // With all zero tokens, the chart should render axes but all data lines at the bottom
+        // (y = height - margin for all points since normalized values are 0/max)
+        // We verify the image is mostly white (background) with some grey pixels (axes)
+        let mut white_pixels = 0;
+        let mut non_white_pixels = 0;
+
         for y in 0..img.height() {
             for x in 0..img.width() {
                 let pixel = img.get_pixel(x, y);
-                // All RGBA values should be finite (not NaN or Infinity)
-                assert!(pixel[0] < 255 || pixel[0] == 255);
-                assert!(pixel[1] < 255 || pixel[1] == 255);
-                assert!(pixel[2] < 255 || pixel[2] == 255);
-                assert!(pixel[3] < 255 || pixel[3] == 255);
+                if pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255 {
+                    white_pixels += 1;
+                } else {
+                    non_white_pixels += 1;
+                }
             }
         }
+
+        // Most of the image should be white background
+        assert!(
+            white_pixels > non_white_pixels,
+            "Expected mostly white background, got {white_pixels} white vs {non_white_pixels} non-white"
+        );
+
+        // There should be some non-white pixels (axes and data lines)
+        assert!(
+            non_white_pixels > 0,
+            "Expected some drawn elements (axes/lines)"
+        );
     }
 
     #[test]
@@ -359,15 +384,15 @@ mod tests {
         let width = 100;
         let height = 100;
         let mut pixmap = Pixmap::new(width, height).expect("Failed to create pixmap");
-        
+
         // Fill with a specific color (light blue)
         pixmap.fill(Color::from_rgba8(100, 150, 200, 255));
-        
+
         let img = pixmap_to_rgba_image(&pixmap);
-        
+
         assert_eq!(img.width(), width);
         assert_eq!(img.height(), height);
-        
+
         // Verify several pixels have the correct color
         for y in [0, 50, 99] {
             for x in [0, 50, 99] {

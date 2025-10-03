@@ -18,7 +18,7 @@ pub enum Message {
     /// Metrics fetch completed (success or error)
     /// Contains main metrics, optionally today's metrics, and optionally month metrics for panel display
     MetricsFetched(Box<MetricsFetchResult>),
-    /// Config changed externally (from another instance via COSMIC's watch_config)
+    /// Config changed externally (from another instance via COSMIC's `watch_config`)
     ConfigChanged(AppConfig),
     /// Theme changed (visual refresh needed)
     ThemeChanged,

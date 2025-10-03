@@ -163,7 +163,7 @@ pub fn format_panel_reasoning_tokens_only_raw(usage: &UsageMetrics) -> String {
 }
 
 /// Display order for panel metrics (fixed order regardless of selection order)
-/// Cost | Interactions | InputTokens | OutputTokens | ReasoningTokens
+/// Cost | Interactions | `InputTokens` | `OutputTokens` | `ReasoningTokens`
 const METRIC_DISPLAY_ORDER: [PanelMetric; 5] = [
     PanelMetric::Cost,
     PanelMetric::Interactions,
@@ -218,11 +218,11 @@ pub fn format_panel_metric(usage: &UsageMetrics, metric: PanelMetric, use_raw: b
 /// Format: "$1.23 5x IT: 10k OT: 5k RT: 2k"
 /// - Cost: "$X.XX" (no prefix)
 /// - Interactions: "Xx" (no prefix)
-/// - InputTokens: "IT: XXk" (with prefix)
-/// - OutputTokens: "OT: XXk" (with prefix)
-/// - ReasoningTokens: "RT: XXk" (with prefix)
+/// - `InputTokens`: "IT: `XXk`" (with prefix)
+/// - `OutputTokens`: "OT: `XXk`" (with prefix)
+/// - `ReasoningTokens`: "RT: `XXk`" (with prefix)
 ///
-/// The metrics are displayed in a fixed order (Cost, Interactions, InputTokens, OutputTokens, ReasoningTokens)
+/// The metrics are displayed in a fixed order (Cost, Interactions, `InputTokens`, `OutputTokens`, `ReasoningTokens`)
 /// regardless of the order they appear in the input vector. Metrics not present in the vector are skipped.
 ///
 /// # Arguments
@@ -252,8 +252,7 @@ pub fn format_multiple_panel_metrics(
         .map(|metric| {
             let value = format_panel_metric(usage, *metric, use_raw);
             match metric {
-                PanelMetric::Cost => value,
-                PanelMetric::Interactions => value,
+                PanelMetric::Cost | PanelMetric::Interactions => value,
                 PanelMetric::InputTokens => format!("IT: {value}"),
                 PanelMetric::OutputTokens => format!("OT: {value}"),
                 PanelMetric::ReasoningTokens => format!("RT: {value}"),

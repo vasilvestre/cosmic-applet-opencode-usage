@@ -164,11 +164,11 @@ impl OpenCodeMonitorApplet {
                         })?;
 
                         // If panel_metrics is not empty, also fetch today's data
-                        let today_metrics = if !panel_metrics.is_empty() {
+                        let today_metrics = if panel_metrics.is_empty() {
+                            None
+                        } else {
                             eprintln!("[Async] Fetching today's usage for panel");
                             reader.get_usage_today().ok()
-                        } else {
-                            None
                         };
 
                         // Always fetch month data for caching (independent of display mode)

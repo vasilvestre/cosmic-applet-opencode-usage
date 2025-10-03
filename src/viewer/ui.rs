@@ -148,12 +148,12 @@ fn render_chart_image(chart_image: &RgbaImage) -> Element<'static, Message> {
 /// Displays week-over-week comparison in a 5-column horizontal layout,
 /// with a static pre-rendered chart below.
 #[must_use]
-pub fn view_content<'a>(
+pub fn view_content(
     this_week: Option<WeekSummary>,
     last_week: Option<WeekSummary>,
     week_starts: (NaiveDate, NaiveDate),
-    chart_image: &'a RgbaImage,
-) -> Element<'a, Message> {
+    chart_image: &RgbaImage,
+) -> Element<'_, Message> {
     let (_this_week_start, last_week_start) = week_starts;
 
     let mut content = column()
