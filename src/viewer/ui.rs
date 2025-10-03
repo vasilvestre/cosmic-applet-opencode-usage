@@ -222,57 +222,22 @@ pub fn view_content<'a>(
             content = content.push(metrics_row);
         }
         (Some(tw), None) => {
-            // Only this week data
+            // Only this week data - reuse metric block helpers with 0 for previous values
             content = content
                 .push(text("No data available for last week").size(14))
                 .push(text("").size(10));
 
             let metrics_row = row()
-                .push(
-                    column()
-                        .push(text("📝 Input").size(14))
-                        .push(text(format_number(tw.total_input_tokens)).size(18))
-                        .spacing(4)
-                        .padding(12)
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                )
-                .push(
-                    column()
-                        .push(text("📤 Output").size(14))
-                        .push(text(format_number(tw.total_output_tokens)).size(18))
-                        .spacing(4)
-                        .padding(12)
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                )
-                .push(
-                    column()
-                        .push(text("🧠 Reasoning").size(14))
-                        .push(text(format_number(tw.total_reasoning_tokens)).size(18))
-                        .spacing(4)
-                        .padding(12)
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                )
-                .push(
-                    column()
-                        .push(text("💰 Cost").size(14))
-                        .push(text(format_cost(tw.total_cost)).size(18))
-                        .spacing(4)
-                        .padding(12)
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                )
-                .push(
-                    column()
-                        .push(text("🔄 Interactions").size(14))
-                        .push(text(format_number(tw.total_interactions)).size(18))
-                        .spacing(4)
-                        .padding(12)
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                )
+                .push(metric_block("Input", "📝", tw.total_input_tokens, 0))
+                .push(metric_block("Output", "📤", tw.total_output_tokens, 0))
+                .push(metric_block(
+                    "Reasoning",
+                    "🧠",
+                    tw.total_reasoning_tokens,
+                    0,
+                ))
+                .push(cost_metric_block("Cost", "💰", tw.total_cost, 0.0))
+                .push(metric_block("Interactions", "🔄", tw.total_interactions, 0))
                 .spacing(10)
                 .width(Length::Fill);
 
