@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Backfill historical daily snapshots from OpenCode storage.
+//! Backfill historical daily snapshots from `OpenCode` storage.
 //!
 //! This tool analyzes file modification times and creates daily snapshots
 //! for past dates, allowing historical data visualization.
@@ -58,7 +58,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .modified
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default();
-        let timestamp_secs = duration_since_epoch.as_secs() as i64;
+        
+        // Convert u64 seconds to i64 for chrono, clamping to i64::MAX to prevent wrap
+        let timestamp_secs = duration_since_epoch.as_secs().min(i64::MAX as u64) as i64;
 
         let datetime = chrono::Utc.timestamp_opt(timestamp_secs, 0).single();
         if let Some(dt) = datetime {
@@ -117,15 +119,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Parse and aggregate files for this date and all previous dates
         // This gives us cumulative usage up to this date
-        let cutoff = SystemTime::UNIX_EPOCH
-            + std::time::Duration::from_secs(
-                date.and_hms_opt(23, 59, 59).unwrap().and_utc().timestamp() as u64,
-            );
-        let files_up_to_date = scanner.scan_modified_since(SystemTime::UNIX_EPOCH)?;
-        let relevant_files: Vec<_> = files_up_to_date
-            .iter()
-            .filter(|f| f.modified <= cutoff)
-            .collect();
+        // Reuse already-collected all_files instead of rescanning
+        let end_of_day_timestamp = date.and_hms_opt(23, 59, 59).unwrap().and_utc().timestamp();
+        
+        // Only convert to u64 if positive (dates before 1970 would be negative)
+        let cutoff = if end_of_day_timestamp >= 0 {
+            SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(end_of_day_timestamp as u64)
+        } else {
+            SystemTime::UNIX_EPOCH
+        };
+        
+        let relevant_files: Vec<_> = all_files.iter().filter(|f| f.modified <= cutoff).collect();
 
         // Parse and aggregate
         let mut aggregator = UsageAggregator::new();
@@ -151,8 +156,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!(
-        "\n✅ Backfill complete! Created {} new snapshots.\n",
-        saved_count
+        "\n✅ Backfill complete! Created {saved_count} new snapshots.\n"
     );
     println!("The viewer should now display historical data.");
 
