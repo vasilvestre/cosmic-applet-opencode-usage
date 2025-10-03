@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Manually trigger a data collection from OpenCode storage.
+//! Manually trigger a data collection from `OpenCode` storage.
 
 use cosmic_applet_opencode_usage::core::{
     database::DatabaseManager, opencode::OpenCodeUsageReader,
@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Save to database
     let current_date = chrono::Utc::now().date_naive();
-    println!("\n💾 Saving snapshot for {}...", current_date);
+    println!("\n💾 Saving snapshot for {current_date}...");
 
     repo.save_snapshot(current_date, &metrics)?;
 

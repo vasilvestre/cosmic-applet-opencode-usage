@@ -39,8 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let total_input: i64 = row.get(2)?;
             let total_output: i64 = row.get(3)?;
             println!(
-                "  ❌ Date {} has {} entries (total input: {}, output: {})",
-                date, count, total_input, total_output
+                "  ❌ Date {date} has {count} entries (total input: {total_input}, output: {total_output})"
             );
             Ok((date, count))
         })?
@@ -77,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
              )",
             [&date],
         )?;
-        println!("  ✅ Cleaned up duplicates for {}", date);
+        println!("  ✅ Cleaned up duplicates for {date}");
     }
 
     println!("\n✨ Done! Database cleaned.");
@@ -86,7 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let total_snapshots: i32 =
         conn.query_row("SELECT COUNT(*) FROM usage_snapshots", [], |row| row.get(0))?;
 
-    println!("\n📊 Total snapshots remaining: {}", total_snapshots);
+    println!("\n📊 Total snapshots remaining: {total_snapshots}");
 
     Ok(())
 }

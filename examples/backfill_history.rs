@@ -60,6 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_default();
 
         // Convert u64 seconds to i64 for chrono, clamping to i64::MAX to prevent wrap
+        #[allow(clippy::cast_possible_wrap)] // Clamped to i64::MAX, safe for chrono
         let timestamp_secs = duration_since_epoch.as_secs().min(i64::MAX as u64) as i64;
 
         let datetime = chrono::Utc.timestamp_opt(timestamp_secs, 0).single();

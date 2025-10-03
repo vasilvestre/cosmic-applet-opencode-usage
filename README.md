@@ -66,6 +66,38 @@ This scans your OpenCode storage files and creates daily snapshots based on file
 
 This project follows Test-Driven Development (TDD) principles. See the `features/` directory for detailed specifications and implementation tasks.
 
+### Setting Up Git Hooks
+
+To ensure code quality, install the pre-commit hooks that automatically check formatting and linting:
+
+```sh
+./setup-hooks.sh
+```
+
+This will configure git to run the following checks before each commit:
+- **Code formatting** (`cargo +nightly fmt`)
+- **Linting** (`cargo clippy --all-features --all-targets -- -W clippy::pedantic`)
+
+To skip hooks in exceptional cases: `git commit --no-verify`
+
+### Manual Quality Checks
+
+Run these commands manually to check code quality:
+
+```sh
+# Format code
+just fmt
+
+# Run linting
+just lint
+
+# Run tests
+just test
+
+# Run all checks (like CI)
+just check
+```
+
 Refer to the [COSMIC documentation](https://pop-os.github.io/libcosmic/cosmic/) for more information on building COSMIC applets.
 
 ## License

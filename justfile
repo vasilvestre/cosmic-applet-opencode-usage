@@ -56,6 +56,18 @@ check *args:
 # Runs a clippy check with JSON message format
 check-json: (check '--message-format=json')
 
+# Format code with rustfmt
+fmt:
+    cargo +nightly fmt --all
+
+# Run linting checks
+lint:
+    cargo clippy --all-features --all-targets -- -W clippy::pedantic
+
+# Run tests
+test *args:
+    cargo test {{args}}
+
 dev *args:
     cargo fmt
     just run {{args}}

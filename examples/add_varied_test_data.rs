@@ -35,9 +35,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let interactions = 5 + (days_ago % 5);
 
         // Calculate cost (rough estimate)
-        let cost = (input_tokens as f64 * 0.000003)
-            + (output_tokens as f64 * 0.000015)
-            + (reasoning_tokens as f64 * 0.000003);
+        #[allow(clippy::cast_precision_loss)] // Test data generation
+        let cost = (input_tokens as f64 * 0.000_003)
+            + (output_tokens as f64 * 0.000_015)
+            + (reasoning_tokens as f64 * 0.000_003);
 
         let conn = db_manager.get_connection();
         conn.execute(
@@ -60,8 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
 
         println!(
-            "Added data for {} days ago: Input={}, Output={}, Reasoning={}",
-            days_ago, input_tokens, output_tokens, reasoning_tokens
+            "Added data for {days_ago} days ago: Input={input_tokens}, Output={output_tokens}, Reasoning={reasoning_tokens}"
         );
     }
 
