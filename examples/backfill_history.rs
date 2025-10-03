@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .modified
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default();
-        
+
         // Convert u64 seconds to i64 for chrono, clamping to i64::MAX to prevent wrap
         let timestamp_secs = duration_since_epoch.as_secs().min(i64::MAX as u64) as i64;
 
@@ -121,16 +121,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // This gives us cumulative usage up to this date
         // Reuse already-collected all_files instead of rescanning
         let end_of_day_timestamp = date.and_hms_opt(23, 59, 59).unwrap().and_utc().timestamp();
-        
+
         // Only convert to u64 if positive (dates before 1970 would be negative)
         #[allow(clippy::cast_sign_loss)] // Already checked for negative values
         let cutoff = if end_of_day_timestamp >= 0 {
-            SystemTime::UNIX_EPOCH
-                + std::time::Duration::from_secs(end_of_day_timestamp as u64)
+            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(end_of_day_timestamp as u64)
         } else {
             SystemTime::UNIX_EPOCH
         };
-        
+
         let relevant_files: Vec<_> = all_files.iter().filter(|f| f.modified <= cutoff).collect();
 
         // Parse and aggregate
@@ -156,9 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    println!(
-        "\n✅ Backfill complete! Created {saved_count} new snapshots.\n"
-    );
+    println!("\n✅ Backfill complete! Created {saved_count} new snapshots.\n");
     println!("The viewer should now display historical data.");
 
     Ok(())
