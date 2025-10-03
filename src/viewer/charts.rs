@@ -4,7 +4,7 @@
 
 use crate::core::database::repository::UsageSnapshot;
 use chrono::NaiveDate;
-use image::{Rgba, RgbaImage};
+use image::RgbaImage;
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 /// Prepares daily token usage data for charting.
@@ -195,23 +195,15 @@ pub fn generate_token_usage_chart(
 }
 
 /// Converts a `tiny_skia::Pixmap` to an `image::RgbaImage`.
+///
+/// Uses direct buffer conversion to avoid per-pixel overhead and bounds checks.
 fn pixmap_to_rgba_image(pixmap: &Pixmap) -> RgbaImage {
     let width = pixmap.width();
     let height = pixmap.height();
-    let mut img = RgbaImage::new(width, height);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = pixmap.pixel(x, y).expect("Pixel out of bounds");
-            img.put_pixel(
-                x,
-                y,
-                Rgba([pixel.red(), pixel.green(), pixel.blue(), pixel.alpha()]),
-            );
-        }
-    }
-
-    img
+    
+    // Direct buffer conversion - more efficient than per-pixel copying
+    RgbaImage::from_raw(width, height, pixmap.data().to_vec())
+        .expect("Failed to create RgbaImage from pixmap data")
 }
 
 #[cfg(test)]
@@ -357,6 +349,33 @@ mod tests {
                 assert!(pixel[1] < 255 || pixel[1] == 255);
                 assert!(pixel[2] < 255 || pixel[2] == 255);
                 assert!(pixel[3] < 255 || pixel[3] == 255);
+            }
+        }
+    }
+
+    #[test]
+    fn test_pixmap_to_rgba_image_direct_conversion() {
+        // Test that direct buffer conversion produces correct image
+        let width = 100;
+        let height = 100;
+        let mut pixmap = Pixmap::new(width, height).expect("Failed to create pixmap");
+        
+        // Fill with a specific color (light blue)
+        pixmap.fill(Color::from_rgba8(100, 150, 200, 255));
+        
+        let img = pixmap_to_rgba_image(&pixmap);
+        
+        assert_eq!(img.width(), width);
+        assert_eq!(img.height(), height);
+        
+        // Verify several pixels have the correct color
+        for y in [0, 50, 99] {
+            for x in [0, 50, 99] {
+                let pixel = img.get_pixel(x, y);
+                assert_eq!(pixel[0], 100); // Red
+                assert_eq!(pixel[1], 150); // Green
+                assert_eq!(pixel[2], 200); // Blue
+                assert_eq!(pixel[3], 255); // Alpha
             }
         }
     }
