@@ -109,6 +109,9 @@ impl AppConfig {
     }
 
     /// Loads configuration with a custom app ID (useful for testing)
+    ///
+    /// # Errors
+    /// Returns an error if the config cannot be loaded from the COSMIC config system.
     #[cfg(test)]
     pub fn load_with_id(app_id: &str) -> Result<Self, ConfigError> {
         use cosmic::cosmic_config::{Config, ConfigGet};
@@ -166,6 +169,9 @@ impl AppConfig {
     }
 
     /// Saves configuration with a custom app ID (useful for testing)
+    ///
+    /// # Errors
+    /// Returns an error if the config cannot be saved to the COSMIC config system.
     #[cfg(test)]
     pub fn save_with_id(&self, app_id: &str) -> Result<(), ConfigError> {
         use cosmic::cosmic_config::{Config, ConfigSet};

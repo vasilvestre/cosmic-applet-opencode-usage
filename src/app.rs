@@ -1471,14 +1471,16 @@ mod tests {
             let initial_raw_display = applet.state.config.use_raw_token_display;
 
             // Create a new config with different values
-            let mut new_config = AppConfig::default();
-            new_config.refresh_interval_seconds = if initial_interval == 60 { 120 } else { 60 };
-            new_config.panel_metrics = if initial_panel_metrics.is_empty() {
-                vec![PanelMetric::Cost]
-            } else {
-                vec![]
+            let new_config = AppConfig {
+                refresh_interval_seconds: if initial_interval == 60 { 120 } else { 60 },
+                panel_metrics: if initial_panel_metrics.is_empty() {
+                    vec![PanelMetric::Cost]
+                } else {
+                    vec![]
+                },
+                use_raw_token_display: !initial_raw_display,
+                ..Default::default()
             };
-            new_config.use_raw_token_display = !initial_raw_display;
 
             // Send ConfigChanged message (this simulates what happens when
             // another instance saves config and COSMIC broadcasts the change)

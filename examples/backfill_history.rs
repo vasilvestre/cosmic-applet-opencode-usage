@@ -123,6 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let end_of_day_timestamp = date.and_hms_opt(23, 59, 59).unwrap().and_utc().timestamp();
         
         // Only convert to u64 if positive (dates before 1970 would be negative)
+        #[allow(clippy::cast_sign_loss)] // Already checked for negative values
         let cutoff = if end_of_day_timestamp >= 0 {
             SystemTime::UNIX_EPOCH
                 + std::time::Duration::from_secs(end_of_day_timestamp as u64)

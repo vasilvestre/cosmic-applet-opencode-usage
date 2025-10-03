@@ -510,6 +510,8 @@ mod tests {
         for day_offset in 0..7 {
             let date = week_start + chrono::Duration::days(day_offset);
             let day_num = u64::try_from(day_offset + 1).unwrap();
+            #[allow(clippy::cast_precision_loss)] // Test data generation
+            #[allow(clippy::cast_possible_truncation)] // Test data generation
             let metrics = UsageMetrics {
                 total_input_tokens: 1000 * day_num, // 1000, 2000, 3000, etc.
                 total_output_tokens: 500 * day_num,

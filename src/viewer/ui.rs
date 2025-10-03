@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn test_format_number() {
         assert_eq!(format_number(1000), "1,000");
-        assert_eq!(format_number(1000000), "1,000,000");
+        assert_eq!(format_number(1_000_000), "1,000,000");
         assert_eq!(format_number(123), "123");
     }
 
