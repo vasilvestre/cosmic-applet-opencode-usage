@@ -252,6 +252,10 @@ impl OpenCodeMonitorApplet {
             Message::ConfigChanged(new_config) => {
                 eprintln!("[ConfigChanged] Received config update from COSMIC watch_config");
 
+                // Check if panel_metrics is changing (for cache invalidation)
+                let panel_metrics_changed =
+                    self.state.config.panel_metrics != new_config.panel_metrics;
+
                 // Update the in-memory config with the new values from disk
                 // This ensures all instances stay in sync when any instance saves config
                 self.state.config = new_config;
@@ -260,6 +264,15 @@ impl OpenCodeMonitorApplet {
                 let _ = self
                     .refresh_interval_tx
                     .send(self.state.config.refresh_interval_seconds);
+
+                // Invalidate today_usage cache if panel_metrics changed
+                // This ensures we fetch fresh data when the panel display configuration changes
+                if panel_metrics_changed {
+                    eprintln!(
+                        "[ConfigChanged] Panel metrics changed, invalidating today_usage cache"
+                    );
+                    self.state.clear_today_usage();
+                }
 
                 // If panel_metrics is now empty, clear the cache
                 if self.state.config.panel_metrics.is_empty() {
@@ -270,21 +283,10 @@ impl OpenCodeMonitorApplet {
                 Task::done(cosmic::Action::App(Message::FetchMetrics))
             }
             Message::OpenSettings => {
-                // Reload config from disk to ensure we have the latest settings
-                // This ensures that settings sync across multiple applet instances
-                match AppConfig::load() {
-                    Ok(fresh_config) => {
-                        eprintln!("[OpenSettings] Reloaded config from disk");
-                        self.state.config = fresh_config;
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "[OpenSettings] Failed to reload config: {e}, using current config"
-                        );
-                        // Continue with current config if reload fails
-                    }
-                }
-
+                // Use the current in-memory config (no reload needed)
+                // Multi-instance sync is handled by COSMIC's watch_config subscription,
+                // which automatically updates in-memory config via ConfigChanged messages.
+                // Reloading here would overwrite any unsaved changes from other instances.
                 self.settings_dialog_open = true;
                 self.temp_refresh_interval = self.state.config.refresh_interval_seconds;
                 self.temp_refresh_interval_str = self.temp_refresh_interval.to_string();
@@ -357,6 +359,10 @@ impl OpenCodeMonitorApplet {
                     }
                 }
 
+                // Check if panel_metrics is changing (for cache invalidation)
+                let panel_metrics_changed =
+                    self.state.config.panel_metrics != self.temp_panel_metrics;
+
                 // Update config in state
                 self.state.config.refresh_interval_seconds = self.temp_refresh_interval;
                 self.state.config.panel_metrics = self.temp_panel_metrics.clone();
@@ -367,13 +373,22 @@ impl OpenCodeMonitorApplet {
 
                 // Persist config to disk
                 if let Err(err) = self.state.config.save() {
-                    eprintln!("Warning: Failed to save config: {err}");
-                    // Don't block the UI if save fails - just log it
+                    eprintln!("Error: Failed to save config: {err}");
+                    // Show error to user and keep dialog open so they can try again
+                    self.config_error = Some(err);
+                    return Task::none();
                 }
 
                 // Success: close settings
                 self.settings_dialog_open = false;
                 self.popup = None;
+
+                // Invalidate today_usage cache if panel_metrics changed
+                // This ensures we fetch fresh data when the panel display configuration changes
+                if panel_metrics_changed {
+                    eprintln!("[SaveConfig] Panel metrics changed, invalidating today_usage cache");
+                    self.state.clear_today_usage();
+                }
 
                 // Clear today's usage cache if the panel metrics are now empty
                 // and don't trigger a fetch (no data to display)
@@ -1010,9 +1025,13 @@ mod tests {
 
     #[test]
     fn test_panel_metric_selection() {
-        let config = create_mock_config();
-        // Save config to disk so OpenSettings reloads the empty metrics
-        let _ = config.save();
+        // Use test-specific app ID to avoid test interference
+        let test_id = "com.test.CosmicAppletOpencodeUsage.panel_metric_selection";
+        let mut config = AppConfig::load_with_id(test_id).unwrap_or_default();
+        // Start with empty metrics for this test
+        config.panel_metrics = vec![];
+        // Save config to disk so OpenSettings uses the test-specific config
+        let _ = config.save_with_id(test_id);
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Should start with empty metrics
             assert!(applet.state.config.panel_metrics.is_empty());
@@ -1040,7 +1059,10 @@ mod tests {
 
     #[test]
     fn test_panel_metric_empty_clears_cache() {
-        let config = create_mock_config();
+        let config = AppConfig::load_with_id(
+            "com.test.CosmicAppletOpencodeUsage.panel_metric_empty_clears_cache",
+        )
+        .unwrap_or_default();
         // Save config to disk so OpenSettings reloads the empty metrics
         let _ = config.save();
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
@@ -1071,7 +1093,12 @@ mod tests {
 
     #[test]
     fn test_enabling_panel_metric_triggers_fetch() {
-        let config = create_mock_config();
+        let mut config = AppConfig::load_with_id(
+            "com.test.CosmicAppletOpencodeUsage.enabling_panel_metric_triggers_fetch",
+        )
+        .unwrap_or_default();
+        // Start with empty metrics for this test
+        config.panel_metrics = vec![];
         // Save config to disk so OpenSettings reloads the empty metrics
         let _ = config.save();
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
