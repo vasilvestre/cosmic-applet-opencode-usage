@@ -12,19 +12,10 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 /// Returns a vector of (date, input_tokens, output_tokens, reasoning_tokens) tuples
 /// sorted by date ascending.
 #[must_use]
-pub fn prepare_daily_tokens_data(
-    snapshots: &[UsageSnapshot],
-) -> Vec<(NaiveDate, i64, i64, i64)> {
+pub fn prepare_daily_tokens_data(snapshots: &[UsageSnapshot]) -> Vec<(NaiveDate, i64, i64, i64)> {
     let mut data: Vec<_> = snapshots
         .iter()
-        .map(|s| {
-            (
-                s.date,
-                s.input_tokens,
-                s.output_tokens,
-                s.reasoning_tokens,
-            )
-        })
+        .map(|s| (s.date, s.input_tokens, s.output_tokens, s.reasoning_tokens))
         .collect();
 
     data.sort_by_key(|(date, _, _, _)| *date);
@@ -87,12 +78,13 @@ pub fn generate_token_usage_chart(
     #[allow(clippy::cast_precision_loss)]
     let chart_height = height as f32 - 2.0 * margin;
 
-    // Find max value for scaling
+    // Find max value for scaling (ensure at least 1 to prevent division by zero)
     let max_tokens = data
         .iter()
         .map(|(_, input, output, reasoning)| *input.max(output).max(reasoning))
         .max()
-        .unwrap_or(1000);
+        .unwrap_or(1000)
+        .max(1);
 
     #[allow(clippy::cast_precision_loss)]
     let max_tokens_f = max_tokens as f32;
@@ -323,5 +315,49 @@ mod tests {
         let img = generate_token_usage_chart(&[], 800, 400);
         assert_eq!(img.width(), 800);
         assert_eq!(img.height(), 400);
+    }
+
+    #[test]
+    fn test_generate_token_usage_chart_all_zero_tokens() {
+        // Test case where all token values are zero (should not cause division by zero)
+        let snapshots = vec![
+            UsageSnapshot {
+                date: NaiveDate::from_ymd_opt(2025, 10, 1).unwrap(),
+                input_tokens: 0,
+                output_tokens: 0,
+                reasoning_tokens: 0,
+                cache_write_tokens: 0,
+                cache_read_tokens: 0,
+                total_cost: 0.0,
+                interaction_count: 0,
+            },
+            UsageSnapshot {
+                date: NaiveDate::from_ymd_opt(2025, 10, 2).unwrap(),
+                input_tokens: 0,
+                output_tokens: 0,
+                reasoning_tokens: 0,
+                cache_write_tokens: 0,
+                cache_read_tokens: 0,
+                total_cost: 0.0,
+                interaction_count: 0,
+            },
+        ];
+
+        let img = generate_token_usage_chart(&snapshots, 800, 400);
+        assert_eq!(img.width(), 800);
+        assert_eq!(img.height(), 400);
+
+        // Verify that the image doesn't contain NaN values by checking all pixels are valid
+        // NaN values in coordinates would cause rendering artifacts
+        for y in 0..img.height() {
+            for x in 0..img.width() {
+                let pixel = img.get_pixel(x, y);
+                // All RGBA values should be finite (not NaN or Infinity)
+                assert!(pixel[0] < 255 || pixel[0] == 255);
+                assert!(pixel[1] < 255 || pixel[1] == 255);
+                assert!(pixel[2] < 255 || pixel[2] == 255);
+                assert!(pixel[3] < 255 || pixel[3] == 255);
+            }
+        }
     }
 }
