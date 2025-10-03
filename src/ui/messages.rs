@@ -2,6 +2,7 @@
 
 //! UI message types for the applet
 
+use crate::core::config::AppConfig;
 use crate::core::opencode::UsageMetrics;
 use crate::ui::state::DisplayMode;
 
@@ -17,6 +18,8 @@ pub enum Message {
     /// Metrics fetch completed (success or error)
     /// Contains main metrics, optionally today's metrics, and optionally month metrics for panel display
     MetricsFetched(Box<MetricsFetchResult>),
+    /// Config changed externally (from another instance via COSMIC's `watch_config`)
+    ConfigChanged(AppConfig),
     /// Theme changed (visual refresh needed)
     ThemeChanged,
     /// Tooltip needs update
@@ -27,8 +30,10 @@ pub enum Message {
     CloseSettings,
     /// Update refresh interval in settings
     UpdateRefreshInterval(u32),
-    /// Toggle `show_today_usage` setting
-    ToggleShowTodayUsage(bool),
+    /// Toggle a panel metric on/off (add or remove from the list)
+    TogglePanelMetric(crate::core::config::PanelMetric),
+    /// Reset panel metrics to default (all 5 metrics)
+    ResetPanelMetricsToDefaults,
     /// Toggle raw token display setting
     ToggleRawTokenDisplay(bool),
     /// Save configuration

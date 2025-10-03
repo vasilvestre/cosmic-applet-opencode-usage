@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Clean test data from the database (snapshots with input_tokens = 1000).
+//! Clean test data from the database (snapshots with `input_tokens` = 1000).
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use rusqlite::Connection;

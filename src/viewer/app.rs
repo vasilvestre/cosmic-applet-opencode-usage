@@ -2,8 +2,13 @@
 
 //! Viewer application core logic and COSMIC Application trait implementation.
 
-use crate::core::database::{repository::UsageRepository, DatabaseManager};
+use crate::core::database::{
+    repository::{UsageRepository, WeekSummary},
+    DatabaseManager,
+};
+use chrono::{Datelike, NaiveDate};
 use cosmic::{app::Core, Application, Element};
+use image::RgbaImage;
 use std::sync::Arc;
 
 /// Messages that can be sent within the viewer application.
@@ -18,6 +23,16 @@ pub struct ViewerApp {
     core: Core,
     database_manager: Arc<DatabaseManager>,
     repository: Arc<UsageRepository>,
+    /// This week's summary data (pre-loaded)
+    this_week: Option<WeekSummary>,
+    /// Last week's summary data (pre-loaded)
+    last_week: Option<WeekSummary>,
+    /// Start date of this week
+    this_week_start: NaiveDate,
+    /// Start date of last week
+    last_week_start: NaiveDate,
+    /// Pre-rendered chart image (generated once, cached)
+    chart_image: RgbaImage,
 }
 
 impl Application for ViewerApp {
@@ -48,6 +63,25 @@ impl Application for ViewerApp {
         // Create repository
         let repository = Arc::new(UsageRepository::new(Arc::clone(&database_manager)));
 
+        // Pre-load all data needed for view
+        let today = chrono::Utc::now().date_naive();
+        let this_week_start = Self::get_week_start(today);
+        let last_week_start = this_week_start - chrono::Duration::days(7);
+
+        let this_week = repository.get_week_summary(this_week_start).ok();
+        let last_week = repository.get_week_summary(last_week_start).ok();
+
+        // Load chart data for last 30 days
+        let end_date = today;
+        let start_date = today - chrono::Duration::days(30);
+        let chart_snapshots = repository
+            .get_range(start_date, end_date)
+            .unwrap_or_default();
+
+        // Pre-render chart image once (800x400 size)
+        let chart_image =
+            crate::viewer::charts::generate_token_usage_chart(&chart_snapshots, 800, 400);
+
         // Configure window title
         core.window.header_title = "OpenCode Usage History".to_string();
 
@@ -55,6 +89,11 @@ impl Application for ViewerApp {
             core,
             database_manager,
             repository,
+            this_week,
+            last_week,
+            this_week_start,
+            last_week_start,
+            chart_image,
         };
 
         (app, cosmic::app::Task::none())
@@ -70,11 +109,21 @@ impl Application for ViewerApp {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        crate::viewer::ui::view_content(&self.repository)
+        crate::viewer::ui::view_content(
+            self.this_week.clone(),
+            self.last_week.clone(),
+            (self.this_week_start, self.last_week_start),
+            &self.chart_image,
+        )
     }
 }
 
 impl ViewerApp {
+    /// Calculates the start of the week (Monday) for a given date.
+    fn get_week_start(date: NaiveDate) -> NaiveDate {
+        let weekday = date.weekday().num_days_from_monday();
+        date - chrono::Duration::days(i64::from(weekday))
+    }
     /// Gets a reference to the database manager.
     #[must_use]
     pub fn database_manager(&self) -> &Arc<DatabaseManager> {
@@ -94,10 +143,19 @@ impl ViewerApp {
         database_manager: Arc<DatabaseManager>,
         repository: Arc<UsageRepository>,
     ) -> Self {
+        let today = chrono::Utc::now().date_naive();
+        let this_week_start = Self::get_week_start(today);
+        let last_week_start = this_week_start - chrono::Duration::days(7);
+
         Self {
             core,
             database_manager,
             repository,
+            this_week: None,
+            last_week: None,
+            this_week_start,
+            last_week_start,
+            chart_image: crate::viewer::charts::generate_token_usage_chart(&[], 800, 400),
         }
     }
 }

@@ -2,22 +2,16 @@
 
 //! UI rendering logic for the viewer application.
 
-use crate::core::database::repository::UsageRepository;
-use crate::viewer::charts;
+use crate::core::database::repository::WeekSummary;
 use crate::viewer::Message;
-use chrono::{Datelike, NaiveDate, Utc};
+use ::image::RgbaImage;
+use chrono::NaiveDate;
 use cosmic::{
     iced::{Alignment, Length},
-    widget::{column, container, text},
+    iced_core::image::Handle,
+    widget::{column, container, image as cosmic_image, row, text},
     Element,
 };
-use std::sync::Arc;
-
-/// Calculates the start of the week (Monday) for a given date.
-fn get_week_start(date: NaiveDate) -> NaiveDate {
-    let weekday = date.weekday().num_days_from_monday();
-    date - chrono::Duration::days(i64::from(weekday))
-}
 
 /// Formats a number with thousands separators.
 fn format_number(n: i64) -> String {
@@ -82,9 +76,8 @@ fn format_cost_change(current: f64, previous: f64) -> (String, String) {
     (format!("{change_pct:+.1}%"), arrow.to_string())
 }
 
-/// Renders a comparison row for a metric.
-#[allow(clippy::too_many_arguments)]
-fn comparison_row(
+/// Renders a metric block with current value, change indicator, and previous value.
+fn metric_block(
     label: &str,
     icon: &str,
     current: i64,
@@ -96,21 +89,21 @@ fn comparison_row(
 
     let label_text = format!("{icon} {label}");
     let value_display = format!("{current_str}  {arrow}  {change_text}");
-    let comparison = format!("(Last week: {previous_str})");
+    let comparison = format!("(Last: {previous_str})");
 
     column()
-        .push(text(label_text).size(16))
-        .push(text(value_display).size(20))
-        .push(text(comparison).size(13))
+        .push(text(label_text).size(14))
+        .push(text(value_display).size(18))
+        .push(text(comparison).size(12))
         .spacing(4)
-        .padding([12, 0])
+        .padding(12)
         .align_x(Alignment::Center)
         .width(Length::Fill)
         .into()
 }
 
-/// Renders a comparison row for cost metric.
-fn cost_comparison_row(
+/// Renders a metric block for cost with current value, change indicator, and previous value.
+fn cost_metric_block(
     label: &str,
     icon: &str,
     current: f64,
@@ -122,44 +115,46 @@ fn cost_comparison_row(
 
     let label_text = format!("{icon} {label}");
     let value_display = format!("{current_str}  {arrow}  {change_text}");
-    let comparison = format!("(Last week: {previous_str})");
+    let comparison = format!("(Last: {previous_str})");
 
     column()
-        .push(text(label_text).size(16))
-        .push(text(value_display).size(20))
-        .push(text(comparison).size(13))
+        .push(text(label_text).size(14))
+        .push(text(value_display).size(18))
+        .push(text(comparison).size(12))
         .spacing(4)
-        .padding([12, 0])
+        .padding(12)
         .align_x(Alignment::Center)
         .width(Length::Fill)
         .into()
 }
 
+/// Helper to render the pre-generated chart image.
+fn render_chart_image(chart_image: &RgbaImage) -> Element<'static, Message> {
+    let width = chart_image.width();
+    let height = chart_image.height();
+    let pixels = chart_image.as_raw().clone();
+
+    let handle = Handle::from_rgba(width, height, pixels);
+
+    container(cosmic_image(handle))
+        .width(Length::Shrink)
+        .height(Length::Shrink)
+        .center_x(Length::Fill)
+        .into()
+}
+
 /// Renders the main content view for the viewer application.
 ///
-/// Displays week-over-week comparison of usage metrics.
+/// Displays week-over-week comparison in a 5-column horizontal layout,
+/// with a static pre-rendered chart below.
 #[must_use]
-pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Message> {
-    let today = Utc::now().date_naive();
-    let this_week_start = get_week_start(today);
-    let last_week_start = this_week_start - chrono::Duration::days(7);
-
-    // Fetch data
-    let this_week = match repository.get_week_summary(this_week_start) {
-        Ok(summary) => Some(summary),
-        Err(e) => {
-            eprintln!("ERROR: Failed to get this week summary: {e}");
-            None
-        }
-    };
-
-    let last_week = match repository.get_week_summary(last_week_start) {
-        Ok(summary) => Some(summary),
-        Err(e) => {
-            eprintln!("ERROR: Failed to get last week summary: {e}");
-            None
-        }
-    };
+pub fn view_content(
+    this_week: Option<WeekSummary>,
+    last_week: Option<WeekSummary>,
+    week_starts: (NaiveDate, NaiveDate),
+    chart_image: &RgbaImage,
+) -> Element<'_, Message> {
+    let (_this_week_start, last_week_start) = week_starts;
 
     let mut content = column()
         .push(
@@ -189,89 +184,64 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
 
     match (this_week, last_week) {
         (Some(tw), Some(lw)) => {
-            // Show all comparisons
-            content = content
-                .push(comparison_row(
-                    "Input Tokens",
+            // Show all metrics in a horizontal row layout
+            let metrics_row = row()
+                .push(metric_block(
+                    "Input",
                     "📝",
                     tw.total_input_tokens,
                     lw.total_input_tokens,
                 ))
-                .push(comparison_row(
-                    "Output Tokens",
+                .push(metric_block(
+                    "Output",
                     "📤",
                     tw.total_output_tokens,
                     lw.total_output_tokens,
                 ))
-                .push(comparison_row(
-                    "Reasoning Tokens",
+                .push(metric_block(
+                    "Reasoning",
                     "🧠",
                     tw.total_reasoning_tokens,
                     lw.total_reasoning_tokens,
                 ))
-                .push(cost_comparison_row(
-                    "Total Cost",
+                .push(cost_metric_block(
+                    "Cost",
                     "💰",
                     tw.total_cost,
                     lw.total_cost,
                 ))
-                .push(comparison_row(
+                .push(metric_block(
                     "Interactions",
                     "🔄",
                     tw.total_interactions,
                     lw.total_interactions,
-                ));
+                ))
+                .spacing(10)
+                .width(Length::Fill);
+
+            content = content.push(metrics_row);
         }
         (Some(tw), None) => {
-            // Only this week data
+            // Only this week data - reuse metric block helpers with 0 for previous values
             content = content
                 .push(text("No data available for last week").size(14))
-                .push(text("").size(10))
-                .push(
-                    column()
-                        .push(text("📝 Input Tokens").size(16))
-                        .push(text(format_number(tw.total_input_tokens)).size(20))
-                        .spacing(4)
-                        .padding([12, 0])
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                )
-                .push(
-                    column()
-                        .push(text("📤 Output Tokens").size(16))
-                        .push(text(format_number(tw.total_output_tokens)).size(20))
-                        .spacing(4)
-                        .padding([12, 0])
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                )
-                .push(
-                    column()
-                        .push(text("🧠 Reasoning Tokens").size(16))
-                        .push(text(format_number(tw.total_reasoning_tokens)).size(20))
-                        .spacing(4)
-                        .padding([12, 0])
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                )
-                .push(
-                    column()
-                        .push(text("💰 Total Cost").size(16))
-                        .push(text(format_cost(tw.total_cost)).size(20))
-                        .spacing(4)
-                        .padding([12, 0])
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                )
-                .push(
-                    column()
-                        .push(text("🔄 Interactions").size(16))
-                        .push(text(format_number(tw.total_interactions)).size(20))
-                        .spacing(4)
-                        .padding([12, 0])
-                        .align_x(Alignment::Center)
-                        .width(Length::Fill),
-                );
+                .push(text("").size(10));
+
+            let metrics_row = row()
+                .push(metric_block("Input", "📝", tw.total_input_tokens, 0))
+                .push(metric_block("Output", "📤", tw.total_output_tokens, 0))
+                .push(metric_block(
+                    "Reasoning",
+                    "🧠",
+                    tw.total_reasoning_tokens,
+                    0,
+                ))
+                .push(cost_metric_block("Cost", "💰", tw.total_cost, 0.0))
+                .push(metric_block("Interactions", "🔄", tw.total_interactions, 0))
+                .spacing(10)
+                .width(Length::Fill);
+
+            content = content.push(metrics_row);
         }
         (None, Some(_lw)) => {
             content = content.push(text("No data available for this week yet").size(14));
@@ -284,69 +254,27 @@ pub fn view_content(repository: &Arc<UsageRepository>) -> Element<'static, Messa
         }
     }
 
-    // Add historical chart for last 30 days
-    let end_date = today;
-    let start_date = today - chrono::Duration::days(30);
-    
-    match repository.get_range(start_date, end_date) {
-        Ok(snapshots) if !snapshots.is_empty() => {
-            content = content
-                .push(text("").size(20)) // Spacer
-                .push(text("30-Day History").size(20))
-                .push(charts::token_usage_chart(&snapshots));
-        }
-        Ok(_) => {
-            // No data for chart range
-        }
-        Err(e) => {
-            eprintln!("ERROR: Failed to fetch chart data: {e}");
-        }
-    }
+    // Add the pre-rendered static chart
+    content = content
+        .push(text("").size(20)) // Spacer
+        .push(text("30-Day History").size(20))
+        .push(render_chart_image(chart_image));
 
     container(content)
         .width(Length::Fill)
         .height(Length::Fill)
-        .center_x(200.0)
+        .center_x(Length::Fill)
         .into()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::database::DatabaseManager;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_view_content_renders_with_empty_data() {
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db");
-        let db = Arc::new(DatabaseManager::new_with_path(&db_path).unwrap());
-        let repository = Arc::new(UsageRepository::new(db));
-
-        // Test that view_content returns a valid Element with empty database
-        let _element = view_content(&repository);
-        // If this compiles and runs, the test passes
-    }
-
-    #[test]
-    fn test_get_week_start_monday() {
-        // Monday Oct 27, 2025
-        let monday = NaiveDate::from_ymd_opt(2025, 10, 27).unwrap();
-        assert_eq!(get_week_start(monday), monday);
-    }
-
-    #[test]
-    fn test_get_week_start_friday() {
-        // Friday Oct 31, 2025 -> should return Monday Oct 27
-        let friday = NaiveDate::from_ymd_opt(2025, 10, 31).unwrap();
-        let expected = NaiveDate::from_ymd_opt(2025, 10, 27).unwrap();
-        assert_eq!(get_week_start(friday), expected);
-    }
 
     #[test]
     fn test_format_number() {
         assert_eq!(format_number(1000), "1,000");
-        assert_eq!(format_number(1000000), "1,000,000");
+        assert_eq!(format_number(1_000_000), "1,000,000");
         assert_eq!(format_number(123), "123");
     }
 

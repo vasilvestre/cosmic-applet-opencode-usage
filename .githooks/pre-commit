@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# Pre-commit hook to enforce code quality standards
+# This hook runs formatting and linting checks before allowing commits
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# Check if cargo is available
+if ! command -v cargo &> /dev/null; then
+    echo "❌ Error: cargo not found in PATH"
+    exit 1
+fi
+
+# Check if nightly toolchain is available for rustfmt
+if ! cargo +nightly --version &> /dev/null; then
+    echo "⚠️  Warning: nightly toolchain not found, attempting to install..."
+    rustup toolchain install nightly
+fi
+
+# 1. Run rustfmt check
+echo "📝 Checking code formatting..."
+if ! cargo +nightly fmt --all -- --check; then
+    echo ""
+    echo "❌ Formatting check failed!"
+    echo "💡 Run 'cargo +nightly fmt --all' to fix formatting issues"
+    exit 1
+fi
+echo "✅ Formatting check passed"
+
+# 2. Run clippy with pedantic warnings
+echo "🔎 Running clippy lints..."
+if ! cargo clippy --all-features --all-targets -- -W clippy::pedantic -D warnings 2>&1 | tee /tmp/clippy-output.txt; then
+    echo ""
+    echo "❌ Clippy check failed!"
+    echo "💡 Fix the warnings/errors shown above before committing"
+    exit 1
+fi
+
+# Check if there were any warnings (clippy with -D warnings treats them as errors)
+if grep -q "warning:" /tmp/clippy-output.txt; then
+    echo ""
+    echo "❌ Clippy warnings found!"
+    echo "💡 Fix all clippy warnings before committing"
+    rm -f /tmp/clippy-output.txt
+    exit 1
+fi
+
+rm -f /tmp/clippy-output.txt
+echo "✅ Clippy check passed"
+
+echo ""
+echo "✅ All pre-commit checks passed!"
+echo "📦 Proceeding with commit..."

@@ -25,14 +25,52 @@ pub struct Migration {
 /// Returns the list of all available migrations in order.
 #[must_use]
 pub fn get_migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "Initial schema - create usage_snapshots and schema_version tables"
-            .to_string(),
-        sql: format!(
-            "{CREATE_SCHEMA_VERSION_TABLE};\n{CREATE_USAGE_SNAPSHOTS_TABLE};\n{CREATE_DATE_INDEX};"
-        ),
-    }]
+    vec![
+        Migration {
+            version: 1,
+            description: "Initial schema - create usage_snapshots and schema_version tables"
+                .to_string(),
+            sql: format!(
+                "{CREATE_SCHEMA_VERSION_TABLE};\n{CREATE_USAGE_SNAPSHOTS_TABLE};\n{CREATE_DATE_INDEX};"
+            ),
+        },
+        Migration {
+            version: 2,
+            description: "Add UNIQUE constraint to date column to prevent duplicates".to_string(),
+            sql: r"
+-- Create new table with UNIQUE constraint
+CREATE TABLE usage_snapshots_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL UNIQUE,
+    input_tokens INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    reasoning_tokens INTEGER NOT NULL,
+    cache_write_tokens INTEGER NOT NULL,
+    cache_read_tokens INTEGER NOT NULL,
+    total_cost REAL NOT NULL,
+    interaction_count INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+-- Copy data, keeping only the most recent entry for each date
+INSERT INTO usage_snapshots_new 
+SELECT * FROM usage_snapshots
+WHERE id IN (
+    SELECT MAX(id) FROM usage_snapshots GROUP BY date
+);
+
+-- Drop old table
+DROP TABLE usage_snapshots;
+
+-- Rename new table
+ALTER TABLE usage_snapshots_new RENAME TO usage_snapshots;
+
+-- Recreate index
+CREATE INDEX IF NOT EXISTS idx_usage_snapshots_date ON usage_snapshots(date);
+"
+                .to_string(),
+        },
+    ]
 }
 
 /// Gets the current schema version from the database.
@@ -169,7 +207,7 @@ mod tests {
         apply_migrations(&conn).unwrap();
 
         let version = get_current_version(&conn).unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, 2); // Updated to expect version 2
     }
 
     #[test]
@@ -222,9 +260,9 @@ mod tests {
         apply_migrations(&conn).unwrap();
         apply_migrations(&conn).unwrap(); // Should not error
 
-        // Verify version is still 1
+        // Verify version is 2 (latest migration)
         let version = get_current_version(&conn).unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, 2);
     }
 
     #[test]

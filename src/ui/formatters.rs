@@ -2,6 +2,7 @@
 
 //! UI formatting utilities
 
+use crate::core::config::PanelMetric;
 use crate::core::opencode::UsageMetrics;
 use chrono::{DateTime, Utc};
 
@@ -89,26 +90,177 @@ pub fn format_panel_display(usage: &UsageMetrics) -> String {
     format!("{tokens}/{cost}")
 }
 
-/// Format comprehensive panel display with all metrics (e.g., "$1.2 | 3x | 10k/5k")
-/// Format: Cost | Interactions | InputTokens/OutputTokens
+/// Format comprehensive panel display with all metrics (e.g., "$1.2 | 3x | 10k/5k/2k")
+/// Format: Cost | Interactions | InputTokens/OutputTokens/ReasoningTokens
 #[must_use]
 pub fn format_panel_display_detailed(usage: &UsageMetrics) -> String {
     let cost = format_cost_compact(usage.total_cost);
     let interactions = usage.interaction_count;
     let input_tokens = format_tokens_compact(usage.total_input_tokens);
     let output_tokens = format_tokens_compact(usage.total_output_tokens);
-    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}")
+    let reasoning_tokens = format_tokens_compact(usage.total_reasoning_tokens);
+    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}/{reasoning_tokens}")
 }
 
-/// Format comprehensive panel display with raw token values (e.g., "$1.2 | 3x | 10000/5000")
-/// Format: Cost | Interactions | InputTokens/OutputTokens (no K/M suffixes)
+/// Format comprehensive panel display with raw token values (e.g., "$1.2 | 3x | 10000/5000/2000")
+/// Format: Cost | Interactions | InputTokens/OutputTokens/ReasoningTokens (no K/M suffixes)
 #[must_use]
 pub fn format_panel_display_detailed_raw(usage: &UsageMetrics) -> String {
     let cost = format_cost_compact(usage.total_cost);
     let interactions = usage.interaction_count;
     let input_tokens = format_tokens_raw(usage.total_input_tokens);
     let output_tokens = format_tokens_raw(usage.total_output_tokens);
-    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}")
+    let reasoning_tokens = format_tokens_raw(usage.total_reasoning_tokens);
+    format!("{cost} | {interactions}x | {input_tokens}/{output_tokens}/{reasoning_tokens}")
+}
+
+/// Format only cost for panel display (e.g., "$1.2")
+#[must_use]
+pub fn format_panel_cost_only(usage: &UsageMetrics) -> String {
+    format_cost_compact(usage.total_cost)
+}
+
+/// Format only interaction count for panel display (e.g., "5x")
+#[must_use]
+pub fn format_panel_interactions_only(usage: &UsageMetrics) -> String {
+    format!("{}x", usage.interaction_count)
+}
+
+/// Format only input tokens for panel display (e.g., "10k")
+#[must_use]
+pub fn format_panel_input_tokens_only(usage: &UsageMetrics) -> String {
+    format_tokens_compact(usage.total_input_tokens)
+}
+
+/// Format only output tokens for panel display (e.g., "5k")
+#[must_use]
+pub fn format_panel_output_tokens_only(usage: &UsageMetrics) -> String {
+    format_tokens_compact(usage.total_output_tokens)
+}
+
+/// Format only reasoning tokens for panel display (e.g., "2k")
+#[must_use]
+pub fn format_panel_reasoning_tokens_only(usage: &UsageMetrics) -> String {
+    format_tokens_compact(usage.total_reasoning_tokens)
+}
+
+/// Format only input tokens with raw numbers for panel display (e.g., "10,000")
+#[must_use]
+pub fn format_panel_input_tokens_only_raw(usage: &UsageMetrics) -> String {
+    format_tokens_raw(usage.total_input_tokens)
+}
+
+/// Format only output tokens with raw numbers for panel display (e.g., "5,000")
+#[must_use]
+pub fn format_panel_output_tokens_only_raw(usage: &UsageMetrics) -> String {
+    format_tokens_raw(usage.total_output_tokens)
+}
+
+/// Format only reasoning tokens with raw numbers for panel display (e.g., "2,000")
+#[must_use]
+pub fn format_panel_reasoning_tokens_only_raw(usage: &UsageMetrics) -> String {
+    format_tokens_raw(usage.total_reasoning_tokens)
+}
+
+/// Display order for panel metrics (fixed order regardless of selection order)
+/// Cost | Interactions | `InputTokens` | `OutputTokens` | `ReasoningTokens`
+const METRIC_DISPLAY_ORDER: [PanelMetric; 5] = [
+    PanelMetric::Cost,
+    PanelMetric::Interactions,
+    PanelMetric::InputTokens,
+    PanelMetric::OutputTokens,
+    PanelMetric::ReasoningTokens,
+];
+
+/// Format panel metric based on the selected metric type
+///
+/// This dispatcher function routes to the appropriate formatter based on the `PanelMetric` enum.
+/// The `use_raw` parameter determines whether to use compact (K/M) or raw (with separators) token display.
+///
+/// # Arguments
+/// * `usage` - The usage metrics to format
+/// * `metric` - The panel metric type to display
+/// * `use_raw` - Whether to use raw token display (ignored for Cost and Interactions)
+///
+/// # Returns
+/// * Formatted string for the selected metric
+#[must_use]
+pub fn format_panel_metric(usage: &UsageMetrics, metric: PanelMetric, use_raw: bool) -> String {
+    match metric {
+        PanelMetric::Cost => format_panel_cost_only(usage),
+        PanelMetric::Interactions => format_panel_interactions_only(usage),
+        PanelMetric::InputTokens => {
+            if use_raw {
+                format_panel_input_tokens_only_raw(usage)
+            } else {
+                format_panel_input_tokens_only(usage)
+            }
+        }
+        PanelMetric::OutputTokens => {
+            if use_raw {
+                format_panel_output_tokens_only_raw(usage)
+            } else {
+                format_panel_output_tokens_only(usage)
+            }
+        }
+        PanelMetric::ReasoningTokens => {
+            if use_raw {
+                format_panel_reasoning_tokens_only_raw(usage)
+            } else {
+                format_panel_reasoning_tokens_only(usage)
+            }
+        }
+    }
+}
+
+/// Format multiple panel metrics in a fixed order
+///
+/// Format: "$1.23 5x IT: 10k OT: 5k RT: 2k"
+/// - Cost: "$X.XX" (no prefix)
+/// - Interactions: "Xx" (no prefix)
+/// - `InputTokens`: "IT: `XXk`" (with prefix)
+/// - `OutputTokens`: "OT: `XXk`" (with prefix)
+/// - `ReasoningTokens`: "RT: `XXk`" (with prefix)
+///
+/// The metrics are displayed in a fixed order (Cost, Interactions, `InputTokens`, `OutputTokens`, `ReasoningTokens`)
+/// regardless of the order they appear in the input vector. Metrics not present in the vector are skipped.
+///
+/// # Arguments
+/// * `usage` - The usage metrics to format
+/// * `metrics` - Vector of panel metrics to display (order doesn't matter, will be reordered)
+/// * `use_raw` - Whether to use raw token display (ignored for Cost and Interactions)
+///
+/// # Returns
+/// * Formatted string with selected metrics separated by spaces, or empty string if metrics is empty
+#[must_use]
+pub fn format_multiple_panel_metrics(
+    usage: &UsageMetrics,
+    metrics: &[PanelMetric],
+    use_raw: bool,
+) -> String {
+    if metrics.is_empty() {
+        return String::new();
+    }
+
+    // Convert to a set-like structure for O(1) lookup
+    let metric_set: std::collections::HashSet<PanelMetric> = metrics.iter().copied().collect();
+
+    // Format metrics in display order
+    let formatted_metrics: Vec<String> = METRIC_DISPLAY_ORDER
+        .iter()
+        .filter(|m| metric_set.contains(m))
+        .map(|metric| {
+            let value = format_panel_metric(usage, *metric, use_raw);
+            match metric {
+                PanelMetric::Cost | PanelMetric::Interactions => value,
+                PanelMetric::InputTokens => format!("IT: {value}"),
+                PanelMetric::OutputTokens => format!("OT: {value}"),
+                PanelMetric::ReasoningTokens => format!("RT: {value}"),
+            }
+        })
+        .collect();
+
+    formatted_metrics.join(" ")
 }
 
 /// Get the primary metric to display (total cost)
@@ -316,7 +468,10 @@ mod tests {
             interaction_count: 1,
             timestamp: std::time::SystemTime::now(),
         };
-        assert_eq!(format_panel_display_detailed(&usage), "$0.05 | 1x | 100/50");
+        assert_eq!(
+            format_panel_display_detailed(&usage),
+            "$0.05 | 1x | 100/50/0"
+        );
     }
 
     #[test]
@@ -331,7 +486,10 @@ mod tests {
             interaction_count: 15,
             timestamp: std::time::SystemTime::now(),
         };
-        assert_eq!(format_panel_display_detailed(&usage), "$1.2 | 15x | 10k/5k");
+        assert_eq!(
+            format_panel_display_detailed(&usage),
+            "$1.2 | 15x | 10k/5k/0"
+        );
     }
 
     #[test]
@@ -348,7 +506,25 @@ mod tests {
         };
         assert_eq!(
             format_panel_display_detailed(&usage),
-            "$126 | 1234x | 25M/10M"
+            "$126 | 1234x | 25M/10M/0"
+        );
+    }
+
+    #[test]
+    fn test_format_panel_display_detailed_with_reasoning() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 15,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(
+            format_panel_display_detailed(&usage),
+            "$1.2 | 15x | 10k/5k/2k"
         );
     }
 
@@ -426,7 +602,7 @@ mod tests {
         };
         let result = format_panel_display_detailed_raw(&usage);
         // Small values should not have separators
-        assert_eq!(result, "$0.05 | 1x | 100/50");
+        assert_eq!(result, "$0.05 | 1x | 100/50/0");
     }
 
     #[test]
@@ -451,5 +627,360 @@ mod tests {
         // The digits should include: 126, 1234, 25000000, 10000000
         assert!(digits_only.contains("25000000"));
         assert!(digits_only.contains("10000000"));
+    }
+
+    // Individual metric formatter tests
+    #[test]
+    fn test_format_panel_cost_only() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 5,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_cost_only(&usage), "$1.2");
+    }
+
+    #[test]
+    fn test_format_panel_interactions_only() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 5,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_interactions_only(&usage), "5x");
+    }
+
+    #[test]
+    fn test_format_panel_input_tokens_only() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 5,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_input_tokens_only(&usage), "10k");
+    }
+
+    #[test]
+    fn test_format_panel_output_tokens_only() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 5,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_output_tokens_only(&usage), "5k");
+    }
+
+    #[test]
+    fn test_format_panel_reasoning_tokens_only() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 5,
+            timestamp: std::time::SystemTime::now(),
+        };
+        assert_eq!(format_panel_reasoning_tokens_only(&usage), "2k");
+    }
+
+    // Test raw token display variants
+    #[test]
+    fn test_format_panel_input_tokens_only_raw() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 5,
+            timestamp: std::time::SystemTime::now(),
+        };
+        let result = format_panel_input_tokens_only_raw(&usage);
+        // Should contain the digits 10000 (possibly with separators)
+        let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
+        assert_eq!(digits_only, "10000");
+    }
+
+    #[test]
+    fn test_format_panel_output_tokens_only_raw() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 5,
+            timestamp: std::time::SystemTime::now(),
+        };
+        let result = format_panel_output_tokens_only_raw(&usage);
+        let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
+        assert_eq!(digits_only, "5000");
+    }
+
+    #[test]
+    fn test_format_panel_reasoning_tokens_only_raw() {
+        let usage = UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 5,
+            timestamp: std::time::SystemTime::now(),
+        };
+        let result = format_panel_reasoning_tokens_only_raw(&usage);
+        let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
+        assert_eq!(digits_only, "2000");
+    }
+
+    // Dispatcher function tests
+    #[test]
+    fn test_format_panel_metric_cost() {
+        let usage = create_test_usage();
+        assert_eq!(
+            format_panel_metric(&usage, PanelMetric::Cost, false),
+            "$1.2"
+        );
+    }
+
+    #[test]
+    fn test_format_panel_metric_interactions() {
+        let usage = create_test_usage();
+        assert_eq!(
+            format_panel_metric(&usage, PanelMetric::Interactions, false),
+            "5x"
+        );
+    }
+
+    #[test]
+    fn test_format_panel_metric_input_tokens() {
+        let usage = create_test_usage();
+        assert_eq!(
+            format_panel_metric(&usage, PanelMetric::InputTokens, false),
+            "10k"
+        );
+    }
+
+    #[test]
+    fn test_format_panel_metric_output_tokens() {
+        let usage = create_test_usage();
+        assert_eq!(
+            format_panel_metric(&usage, PanelMetric::OutputTokens, false),
+            "5k"
+        );
+    }
+
+    #[test]
+    fn test_format_panel_metric_reasoning_tokens() {
+        let usage = create_test_usage();
+        assert_eq!(
+            format_panel_metric(&usage, PanelMetric::ReasoningTokens, false),
+            "2k"
+        );
+    }
+
+    #[test]
+    fn test_format_panel_metric_input_tokens_raw() {
+        let usage = create_test_usage();
+        let result = format_panel_metric(&usage, PanelMetric::InputTokens, true);
+        let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
+        assert_eq!(digits_only, "10000");
+    }
+
+    #[test]
+    fn test_format_panel_metric_output_tokens_raw() {
+        let usage = create_test_usage();
+        let result = format_panel_metric(&usage, PanelMetric::OutputTokens, true);
+        let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
+        assert_eq!(digits_only, "5000");
+    }
+
+    #[test]
+    fn test_format_panel_metric_reasoning_tokens_raw() {
+        let usage = create_test_usage();
+        let result = format_panel_metric(&usage, PanelMetric::ReasoningTokens, true);
+        let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
+        assert_eq!(digits_only, "2000");
+    }
+
+    // Helper function for tests
+    fn create_test_usage() -> UsageMetrics {
+        UsageMetrics {
+            total_input_tokens: 10_000,
+            total_output_tokens: 5_000,
+            total_reasoning_tokens: 2_000,
+            total_cache_write_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_cost: 1.23,
+            interaction_count: 5,
+            timestamp: std::time::SystemTime::now(),
+        }
+    }
+
+    // ===== MULTI-METRIC FORMATTER TESTS (TDD - RED PHASE) =====
+
+    #[test]
+    fn test_format_multiple_panel_metrics_empty() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(&usage, &[], false);
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_single_cost() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(&usage, &[PanelMetric::Cost], false);
+        assert_eq!(result, "$1.2");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_single_interactions() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(&usage, &[PanelMetric::Interactions], false);
+        assert_eq!(result, "5x");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_single_input_tokens() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(&usage, &[PanelMetric::InputTokens], false);
+        assert_eq!(result, "IT: 10k");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_single_output_tokens() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(&usage, &[PanelMetric::OutputTokens], false);
+        assert_eq!(result, "OT: 5k");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_single_reasoning_tokens() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(&usage, &[PanelMetric::ReasoningTokens], false);
+        assert_eq!(result, "RT: 2k");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_all_metrics() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(
+            &usage,
+            &[
+                PanelMetric::Cost,
+                PanelMetric::Interactions,
+                PanelMetric::InputTokens,
+                PanelMetric::OutputTokens,
+                PanelMetric::ReasoningTokens,
+            ],
+            false,
+        );
+        assert_eq!(result, "$1.2 5x IT: 10k OT: 5k RT: 2k");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_cost_and_interactions() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(
+            &usage,
+            &[PanelMetric::Cost, PanelMetric::Interactions],
+            false,
+        );
+        assert_eq!(result, "$1.2 5x");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_tokens_only() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(
+            &usage,
+            &[
+                PanelMetric::InputTokens,
+                PanelMetric::OutputTokens,
+                PanelMetric::ReasoningTokens,
+            ],
+            false,
+        );
+        assert_eq!(result, "IT: 10k OT: 5k RT: 2k");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_fixed_order_regardless_of_input() {
+        let usage = create_test_usage();
+        // Test that order is always Cost -> Interactions -> InputTokens -> OutputTokens -> ReasoningTokens
+        // regardless of input order
+        let result1 = format_multiple_panel_metrics(
+            &usage,
+            &[PanelMetric::ReasoningTokens, PanelMetric::Cost],
+            false,
+        );
+        let result2 = format_multiple_panel_metrics(
+            &usage,
+            &[PanelMetric::Cost, PanelMetric::ReasoningTokens],
+            false,
+        );
+        assert_eq!(result1, result2);
+        assert_eq!(result1, "$1.2 RT: 2k");
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_with_raw_tokens() {
+        let usage = create_test_usage();
+        let result = format_multiple_panel_metrics(
+            &usage,
+            &[
+                PanelMetric::Cost,
+                PanelMetric::InputTokens,
+                PanelMetric::OutputTokens,
+            ],
+            true, // use_raw = true
+        );
+        // Should have raw token values (with possible locale separators)
+        assert!(result.starts_with("$1.2 IT: "));
+        // Check that the digits are preserved
+        let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
+        assert!(digits_only.contains("10000"));
+        assert!(digits_only.contains("5000"));
+    }
+
+    #[test]
+    fn test_format_multiple_panel_metrics_duplicates_handled() {
+        let usage = create_test_usage();
+        // Test that duplicates in input are handled (should appear only once)
+        let result = format_multiple_panel_metrics(
+            &usage,
+            &[
+                PanelMetric::Cost,
+                PanelMetric::Cost,
+                PanelMetric::Interactions,
+            ],
+            false,
+        );
+        assert_eq!(result, "$1.2 5x");
     }
 }
