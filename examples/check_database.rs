@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let today = chrono::Utc::now().date_naive();
     let long_ago = today - chrono::Duration::days(365 * 2); // Get up to 2 years of data
     let all_snapshots = repository.get_range(long_ago, today)?;
-    
+
     println!("\n📊 Total snapshots in database: {}", all_snapshots.len());
 
     // Show latest 5 snapshots

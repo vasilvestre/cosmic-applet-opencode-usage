@@ -19,8 +19,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Use the production database path
     let home = std::env::var("HOME")?;
-    let db_path = std::path::PathBuf::from(&home)
-        .join(".local/share/cosmic-applet-opencode-usage/usage.db");
+    let db_path =
+        std::path::PathBuf::from(&home).join(".local/share/cosmic-applet-opencode-usage/usage.db");
 
     println!("Database: {}", db_path.display());
 

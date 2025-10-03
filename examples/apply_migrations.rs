@@ -20,10 +20,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n🔄 Applying pending migrations...");
-    
+
     // DatabaseManager will automatically run migrations on creation
     let _db = DatabaseManager::new_with_path(&db_path)?;
-    
+
     println!("✅ Migrations applied successfully!");
     println!("\nThe database now has:");
     println!("  - UNIQUE constraint on date column");

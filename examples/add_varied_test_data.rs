@@ -11,33 +11,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Adding varied test data for last 30 days...\n");
 
     let now = Utc::now();
-    
+
     // Create data for each of the last 30 days with varying amounts
     for days_ago in (0..30).rev() {
         let date = now - Duration::days(days_ago);
         let date_str = date.format("%Y-%m-%d").to_string();
         let created_at = date.to_rfc3339();
-        
+
         // Vary the token counts to create an interesting trend
         // Simulate increasing usage over time
         let base_input = 5000 + (days_ago * 200);
         let base_output = 2000 + (days_ago * 150);
         let base_reasoning = 1000 + (days_ago * 50);
-        
+
         // Add some randomness (using day as seed for consistency)
         let variation = (days_ago % 7) * 100;
-        
+
         let input_tokens = base_input + variation;
         let output_tokens = base_output + variation;
         let reasoning_tokens = base_reasoning + variation / 2;
         let cache_write = input_tokens / 10;
         let cache_read = input_tokens / 20;
         let interactions = 5 + (days_ago % 5);
-        
+
         // Calculate cost (rough estimate)
-        let cost = (input_tokens as f64 * 0.000003) 
-                 + (output_tokens as f64 * 0.000015)
-                 + (reasoning_tokens as f64 * 0.000003);
+        let cost = (input_tokens as f64 * 0.000003)
+            + (output_tokens as f64 * 0.000015)
+            + (reasoning_tokens as f64 * 0.000003);
 
         let conn = db_manager.get_connection();
         conn.execute(
@@ -59,8 +59,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ],
         )?;
 
-        println!("Added data for {} days ago: Input={}, Output={}, Reasoning={}",
-                 days_ago, input_tokens, output_tokens, reasoning_tokens);
+        println!(
+            "Added data for {} days ago: Input={}, Output={}, Reasoning={}",
+            days_ago, input_tokens, output_tokens, reasoning_tokens
+        );
     }
 
     println!("\n✅ Successfully added 30 days of varied test data!");
