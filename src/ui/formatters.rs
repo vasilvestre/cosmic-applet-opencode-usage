@@ -215,11 +215,11 @@ pub fn format_panel_metric(usage: &UsageMetrics, metric: PanelMetric, use_raw: b
 
 /// Format multiple panel metrics in a fixed order
 ///
-/// Format: "$1.23 5x IT: 10k OT: 5k RT: 2k"
+/// Format: "$1.23 5x ↑ 10k ↓ 5k RT: 2k"
 /// - Cost: "$X.XX" (no prefix)
 /// - Interactions: "Xx" (no prefix)
-/// - `InputTokens`: "IT: `XXk`" (with prefix)
-/// - `OutputTokens`: "OT: `XXk`" (with prefix)
+/// - `InputTokens`: "↑ `XXk`" (with arrow prefix)
+/// - `OutputTokens`: "↓ `XXk`" (with arrow prefix)
 /// - `ReasoningTokens`: "RT: `XXk`" (with prefix)
 ///
 /// The metrics are displayed in a fixed order (Cost, Interactions, `InputTokens`, `OutputTokens`, `ReasoningTokens`)
@@ -253,8 +253,8 @@ pub fn format_multiple_panel_metrics(
             let value = format_panel_metric(usage, *metric, use_raw);
             match metric {
                 PanelMetric::Cost | PanelMetric::Interactions => value,
-                PanelMetric::InputTokens => format!("IT: {value}"),
-                PanelMetric::OutputTokens => format!("OT: {value}"),
+                PanelMetric::InputTokens => format!("↑ {value}"),
+                PanelMetric::OutputTokens => format!("↓ {value}"),
                 PanelMetric::ReasoningTokens => format!("RT: {value}"),
             }
         })
@@ -869,14 +869,14 @@ mod tests {
     fn test_format_multiple_panel_metrics_single_input_tokens() {
         let usage = create_test_usage();
         let result = format_multiple_panel_metrics(&usage, &[PanelMetric::InputTokens], false);
-        assert_eq!(result, "IT: 10k");
+        assert_eq!(result, "↑ 10k");
     }
 
     #[test]
     fn test_format_multiple_panel_metrics_single_output_tokens() {
         let usage = create_test_usage();
         let result = format_multiple_panel_metrics(&usage, &[PanelMetric::OutputTokens], false);
-        assert_eq!(result, "OT: 5k");
+        assert_eq!(result, "↓ 5k");
     }
 
     #[test]
@@ -900,7 +900,7 @@ mod tests {
             ],
             false,
         );
-        assert_eq!(result, "$1.2 5x IT: 10k OT: 5k RT: 2k");
+        assert_eq!(result, "$1.2 5x ↑ 10k ↓ 5k RT: 2k");
     }
 
     #[test]
@@ -926,7 +926,7 @@ mod tests {
             ],
             false,
         );
-        assert_eq!(result, "IT: 10k OT: 5k RT: 2k");
+        assert_eq!(result, "↑ 10k ↓ 5k RT: 2k");
     }
 
     #[test]
@@ -961,7 +961,7 @@ mod tests {
             true, // use_raw = true
         );
         // Should have raw token values (with possible locale separators)
-        assert!(result.starts_with("$1.2 IT: "));
+        assert!(result.starts_with("$1.2 ↑ "));
         // Check that the digits are preserved
         let digits_only: String = result.chars().filter(char::is_ascii_digit).collect();
         assert!(digits_only.contains("10000"));

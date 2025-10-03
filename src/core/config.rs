@@ -108,6 +108,22 @@ impl AppConfig {
         Self::load_with_id(APP_ID)
     }
 
+    /// Cleans up obsolete configuration keys from previous versions
+    /// This ensures clean migration from older config formats by overwriting
+    /// obsolete keys with null/empty values
+    fn cleanup_obsolete_keys(config: &cosmic::cosmic_config::Config) {
+        use cosmic::cosmic_config::ConfigSet;
+
+        // Obsolete keys from previous versions:
+        // - "panel_metric" (singular) was replaced by "panel_metrics" (plural Vec)
+        // - "show_today_usage" was replaced by "display_mode" enum
+
+        // Set obsolete keys to None to effectively remove them
+        // We ignore errors since these keys may not exist
+        let _ = config.set("panel_metric", None::<PanelMetric>);
+        let _ = config.set("show_today_usage", None::<bool>);
+    }
+
     /// Loads configuration with a custom app ID (useful for testing)
     ///
     /// # Errors
@@ -119,6 +135,9 @@ impl AppConfig {
         // Try to open config, if it fails, return defaults
         let config = Config::new(app_id, CONFIG_VERSION)
             .map_err(|e| ConfigError::LoadError(format!("Failed to open config: {e}")))?;
+
+        // Clean up obsolete keys from previous versions
+        Self::cleanup_obsolete_keys(&config);
 
         // Load each field individually, using defaults for missing values
         let default = Self::default();
@@ -143,6 +162,9 @@ impl AppConfig {
         // Try to open config, if it fails, return defaults
         let config = Config::new(app_id, CONFIG_VERSION)
             .map_err(|e| ConfigError::LoadError(format!("Failed to open config: {e}")))?;
+
+        // Clean up obsolete keys from previous versions
+        Self::cleanup_obsolete_keys(&config);
 
         // Load each field individually, using defaults for missing values
         let default = Self::default();
