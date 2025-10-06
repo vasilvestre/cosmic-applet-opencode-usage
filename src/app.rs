@@ -19,7 +19,9 @@ use cosmic::{
         window, Alignment, Length, Limits, Subscription,
     },
     iced_futures::stream,
-    widget::{autosize, button, checkbox, column, icon, row, scrollable, text, text_input, Id},
+    widget::{
+        autosize, button, checkbox, column, container, icon, row, scrollable, text, text_input, Id,
+    },
     Application, Element,
 };
 use std::sync::LazyLock;
@@ -660,27 +662,27 @@ impl OpenCodeMonitorApplet {
                 };
 
                 let today_button = if self.state.display_mode == DisplayMode::Today {
-                    button::suggested(today_label).width(Length::FillPortion(1))
+                    button::suggested(today_label).width(Length::Fill)
                 } else {
                     button::standard(today_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::Today))
-                        .width(Length::FillPortion(1))
+                        .width(Length::Fill)
                 };
 
                 let month_button = if self.state.display_mode == DisplayMode::Month {
-                    button::suggested(month_label).width(Length::FillPortion(1))
+                    button::suggested(month_label).width(Length::Fill)
                 } else {
                     button::standard(month_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::Month))
-                        .width(Length::FillPortion(1))
+                        .width(Length::Fill)
                 };
 
                 let last_month_button = if self.state.display_mode == DisplayMode::LastMonth {
-                    button::suggested(last_month_label).width(Length::FillPortion(1))
+                    button::suggested(last_month_label).width(Length::Fill)
                 } else {
                     button::standard(last_month_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::LastMonth))
-                        .width(Length::FillPortion(1))
+                        .width(Length::Fill)
                 };
 
                 let alltime_button = if self.state.display_mode == DisplayMode::AllTime {
@@ -693,11 +695,13 @@ impl OpenCodeMonitorApplet {
 
                 // Create tab rows - first row with Today, Month, Last Month
                 // Second row with All Time button
+                // Wrap each button in a container with FillPortion to ensure equal width distribution
                 let first_row_tabs = row()
-                    .push(today_button)
-                    .push(month_button)
-                    .push(last_month_button)
-                    .spacing(8);
+                    .push(container(today_button).width(Length::FillPortion(1)))
+                    .push(container(month_button).width(Length::FillPortion(1)))
+                    .push(container(last_month_button).width(Length::FillPortion(1)))
+                    .spacing(8)
+                    .width(Length::Fill);
 
                 let second_row_tabs = row().push(alltime_button).spacing(8);
 
