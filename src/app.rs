@@ -1018,7 +1018,8 @@ impl Application for OpenCodeMonitorApplet {
             let (max_w, max_h) = if self.settings_dialog_open {
                 (Some(600.0), Some(600.0))
             } else {
-                (None, Some(500.0)) // No max width for metrics popup, only max height
+                // Set minimum width to fit 4 buttons: Today, Month, Last Month, All Time
+                (Some(600.0), Some(500.0))
             };
 
             let mut container = self.core.applet.popup_container(content);
