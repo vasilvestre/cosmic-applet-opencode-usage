@@ -16,7 +16,7 @@ use cosmic::{
     iced::{
         futures::SinkExt,
         platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup},
-        window, Alignment, Subscription,
+        window, Alignment, Limits, Subscription,
     },
     iced_futures::stream,
     widget::{autosize, button, checkbox, column, icon, row, scrollable, text, text_input, Id},
@@ -497,10 +497,20 @@ impl OpenCodeMonitorApplet {
 
                     if let Some(main_id) = self.core.main_window_id() {
                         eprintln!("DEBUG: Got main window id: {main_id:?}");
-                        let popup_settings = self
+                        let mut popup_settings = self
                             .core
                             .applet
                             .get_popup_settings(main_id, new_id, None, None, None);
+
+                        // Set size limits to allow popup to adapt to content
+                        // Min width ensures "All Time" button fits on one line
+                        // Max dimensions prevent the popup from growing too large
+                        popup_settings.positioner.size_limits = Limits::NONE
+                            .min_width(400.0)
+                            .min_height(300.0)
+                            .max_width(600.0)
+                            .max_height(600.0);
+
                         eprintln!("DEBUG: Created popup settings, calling get_popup");
                         get_popup(popup_settings)
                     } else {
