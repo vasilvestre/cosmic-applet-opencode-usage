@@ -167,6 +167,36 @@ impl OpenCodeUsageReader {
         self.parse_and_aggregate(&month_files)
     }
 
+    /// Get usage metrics for last month only (files modified during last month)
+    ///
+    /// # Errors
+    /// Returns an error if no data is found for last month or if parsing fails.
+    pub fn get_usage_last_month(&mut self) -> Result<UsageMetrics, ReaderError> {
+        // Calculate start of last month and start of current month
+        let last_month_start = Self::get_last_month_start();
+        let this_month_start = Self::get_month_start();
+
+        // Scan only files modified since start of last month
+        let last_month_files = self.scanner.scan_modified_since(last_month_start)?;
+
+        if last_month_files.is_empty() {
+            return Err(ReaderError::NoDataFound);
+        }
+
+        // Filter to only files from last month (before this month started)
+        let last_month_only: Vec<_> = last_month_files
+            .into_iter()
+            .filter(|file| file.modified < this_month_start)
+            .collect();
+
+        if last_month_only.is_empty() {
+            return Err(ReaderError::NoDataFound);
+        }
+
+        // Parse and aggregate filtered files
+        self.parse_and_aggregate(&last_month_only)
+    }
+
     /// Get the start of today (midnight) as `SystemTime`
     fn get_today_start() -> SystemTime {
         let now = SystemTime::now();
@@ -198,6 +228,35 @@ impl OpenCodeUsageReader {
         // Convert to SystemTime using the timestamp
         // timestamp() returns seconds since UNIX_EPOCH in UTC
         let timestamp = month_start.timestamp();
+        // Ensure timestamp is non-negative before casting
+        #[allow(clippy::cast_sign_loss)]
+        let timestamp_u64 = timestamp.max(0) as u64;
+        UNIX_EPOCH + Duration::from_secs(timestamp_u64)
+    }
+
+    /// Get the start of last month (first day at midnight) as `SystemTime`
+    fn get_last_month_start() -> SystemTime {
+        use std::time::UNIX_EPOCH;
+
+        // Get current date in local timezone
+        let now = Local::now();
+
+        // Calculate last month's year and month
+        let (last_month_year, last_month) = if now.month() == 1 {
+            // If current month is January, last month is December of previous year
+            (now.year() - 1, 12)
+        } else {
+            (now.year(), now.month() - 1)
+        };
+
+        // Create a DateTime for the first day of last month at midnight
+        let last_month_start = Local
+            .with_ymd_and_hms(last_month_year, last_month, 1, 0, 0, 0)
+            .single()
+            .expect("Should create valid date for first day of last month");
+
+        // Convert to SystemTime using the timestamp
+        let timestamp = last_month_start.timestamp();
         // Ensure timestamp is non-negative before casting
         #[allow(clippy::cast_sign_loss)]
         let timestamp_u64 = timestamp.max(0) as u64;

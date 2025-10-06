@@ -65,6 +65,8 @@ pub enum DisplayMode {
     Today,
     /// Show this month's usage data only
     Month,
+    /// Show last month's usage data only
+    LastMonth,
 }
 
 /// Application state holding panel state and metadata
@@ -82,6 +84,8 @@ pub struct AppState {
     pub today_usage: Option<UsageMetrics>,
     /// This month's usage for panel display (cached)
     pub month_usage: Option<UsageMetrics>,
+    /// Last month's usage for panel display (cached)
+    pub last_month_usage: Option<UsageMetrics>,
 }
 
 impl AppState {
@@ -96,6 +100,7 @@ impl AppState {
             display_mode,
             today_usage: None,
             month_usage: None,
+            last_month_usage: None,
         }
     }
 
@@ -164,6 +169,16 @@ impl AppState {
     /// Clear this month's usage cache
     pub fn clear_month_usage(&mut self) {
         self.month_usage = None;
+    }
+
+    /// Update last month's usage for panel display
+    pub fn update_last_month_usage(&mut self, usage: UsageMetrics) {
+        self.last_month_usage = Some(usage);
+    }
+
+    /// Clear last month's usage cache
+    pub fn clear_last_month_usage(&mut self) {
+        self.last_month_usage = None;
     }
 }
 

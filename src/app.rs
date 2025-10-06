@@ -185,6 +185,29 @@ impl OpenCodeMonitorApplet {
 
                                 (metrics, today_metrics, None)
                             }
+                            DisplayMode::LastMonth => {
+                                eprintln!("[Async] Fetching last month's usage");
+                                let metrics = reader.get_usage_last_month().map_err(|e| {
+                                    eprintln!("[Async] Error reading metrics: {e}");
+                                    format!("Failed to read OpenCode usage: {e}")
+                                })?;
+
+                                // Fetch today's data for panel if needed
+                                let today_metrics = if panel_metrics.is_empty() {
+                                    None
+                                } else {
+                                    eprintln!("[Async] Fetching today's usage for panel");
+                                    reader.get_usage_today().ok()
+                                };
+
+                                // Fetch this month's data for cache if needed
+                                let month_metrics = {
+                                    eprintln!("[Async] Fetching this month's usage for cache");
+                                    reader.get_usage_month().ok()
+                                };
+
+                                (metrics, today_metrics, month_metrics)
+                            }
                             DisplayMode::AllTime => {
                                 eprintln!("[Async] Fetching all-time usage (using spawn_blocking)");
                                 // Move the reader into the blocking task to avoid blocking the async runtime
@@ -559,6 +582,7 @@ impl OpenCodeMonitorApplet {
                 let title = match self.state.display_mode {
                     DisplayMode::Today => "Today's Usage",
                     DisplayMode::Month => "This Month's Usage",
+                    DisplayMode::LastMonth => "Last Month's Usage",
                     DisplayMode::AllTime => "All-Time Usage",
                 };
 
@@ -577,6 +601,13 @@ impl OpenCodeMonitorApplet {
                 } else {
                     "Month"
                 };
+
+                let last_month_label =
+                    if self.state.display_mode == DisplayMode::LastMonth && is_loading {
+                        "..."
+                    } else {
+                        "Last Month"
+                    };
 
                 let alltime_label = if self.state.display_mode == DisplayMode::AllTime && is_loading
                 {
@@ -599,6 +630,13 @@ impl OpenCodeMonitorApplet {
                         .on_press(Message::SelectDisplayMode(DisplayMode::Month))
                 };
 
+                let last_month_button = if self.state.display_mode == DisplayMode::LastMonth {
+                    button::suggested(last_month_label)
+                } else {
+                    button::standard(last_month_label)
+                        .on_press(Message::SelectDisplayMode(DisplayMode::LastMonth))
+                };
+
                 let alltime_button = if self.state.display_mode == DisplayMode::AllTime {
                     button::suggested(alltime_label)
                 } else {
@@ -610,6 +648,7 @@ impl OpenCodeMonitorApplet {
                 let tabs = row()
                     .push(today_button)
                     .push(month_button)
+                    .push(last_month_button)
                     .push(alltime_button)
                     .spacing(8);
 
