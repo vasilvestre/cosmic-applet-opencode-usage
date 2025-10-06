@@ -37,6 +37,21 @@ use crate::ui::state::{AppState, DisplayMode, PanelState};
 use crate::ui::Message;
 use std::sync::Arc;
 
+/// Check if the viewer binary is available in PATH or build directory
+fn is_viewer_available() -> bool {
+    // Check if binary exists in PATH
+    if std::process::Command::new("cosmic-applet-opencode-usage-viewer")
+        .arg("--version")
+        .output()
+        .is_ok()
+    {
+        return true;
+    }
+
+    // Check if binary exists in build directory
+    std::path::Path::new("./target/release/cosmic-applet-opencode-usage-viewer").exists()
+}
+
 /// `OpenCode` usage monitor applet structure
 pub struct OpenCodeMonitorApplet {
     /// Application state managed by COSMIC runtime
@@ -550,31 +565,49 @@ impl OpenCodeMonitorApplet {
     fn metrics_popup_view(&self) -> Element<'_, Message> {
         use crate::ui::formatters::{format_cost, format_number, format_tooltip};
 
+        let viewer_available = is_viewer_available();
+
         let main_content = match &self.state.panel_state {
-            PanelState::Loading => column()
-                .push(text("Loading...").size(16))
-                .push(text("").size(8))
-                .push(
-                    row()
-                        .push(button::standard("View Stats").on_press(Message::OpenViewer))
-                        .push(button::standard("Settings").on_press(Message::OpenSettings))
-                        .spacing(8),
-                )
-                .spacing(10)
-                .padding(20),
-            PanelState::Error(err) => column()
-                .push(text("Error").size(20))
-                .push(text(err).size(14))
-                .push(text("").size(8))
-                .push(button::standard("Retry").on_press(Message::FetchMetrics))
-                .push(
-                    row()
-                        .push(button::standard("View Stats").on_press(Message::OpenViewer))
-                        .push(button::standard("Settings").on_press(Message::OpenSettings))
-                        .spacing(8),
-                )
-                .spacing(10)
-                .padding(20),
+            PanelState::Loading => {
+                let view_stats_btn = if viewer_available {
+                    button::standard("View Stats").on_press(Message::OpenViewer)
+                } else {
+                    button::standard("View Stats")
+                };
+
+                column()
+                    .push(text("Loading...").size(16))
+                    .push(text("").size(8))
+                    .push(
+                        row()
+                            .push(view_stats_btn)
+                            .push(button::standard("Settings").on_press(Message::OpenSettings))
+                            .spacing(8),
+                    )
+                    .spacing(10)
+                    .padding(20)
+            }
+            PanelState::Error(err) => {
+                let view_stats_btn = if viewer_available {
+                    button::standard("View Stats").on_press(Message::OpenViewer)
+                } else {
+                    button::standard("View Stats")
+                };
+
+                column()
+                    .push(text("Error").size(20))
+                    .push(text(err).size(14))
+                    .push(text("").size(8))
+                    .push(button::standard("Retry").on_press(Message::FetchMetrics))
+                    .push(
+                        row()
+                            .push(view_stats_btn)
+                            .push(button::standard("Settings").on_press(Message::OpenSettings))
+                            .spacing(8),
+                    )
+                    .spacing(10)
+                    .padding(20)
+            }
             PanelState::Success(usage)
             | PanelState::Stale(usage)
             | PanelState::LoadingWithData(usage) => {
@@ -690,12 +723,18 @@ impl OpenCodeMonitorApplet {
                     .push(text("").size(8))
                     .push(text(format_tooltip(self.state.last_update)).size(12))
                     .push(text("").size(8))
-                    .push(
+                    .push({
+                        let view_stats_btn = if viewer_available {
+                            button::standard("View Stats").on_press(Message::OpenViewer)
+                        } else {
+                            button::standard("View Stats")
+                        };
+
                         row()
-                            .push(button::standard("View Stats").on_press(Message::OpenViewer))
+                            .push(view_stats_btn)
                             .push(button::standard("Settings").on_press(Message::OpenSettings))
-                            .spacing(8),
-                    )
+                            .spacing(8)
+                    })
                     .spacing(10)
                     .padding(20)
             }
@@ -977,17 +1016,21 @@ impl Application for OpenCodeMonitorApplet {
             };
 
             let (max_w, max_h) = if self.settings_dialog_open {
-                (600.0, 600.0)
+                (Some(600.0), Some(600.0))
             } else {
-                (700.0, 500.0)
+                (None, Some(500.0)) // No max width for metrics popup, only max height
             };
 
-            self.core
-                .applet
-                .popup_container(content)
-                .max_width(max_w)
-                .max_height(max_h)
-                .into()
+            let mut container = self.core.applet.popup_container(content);
+
+            if let Some(w) = max_w {
+                container = container.max_width(w);
+            }
+            if let Some(h) = max_h {
+                container = container.max_height(h);
+            }
+
+            container.into()
         } else {
             text("").into()
         }
