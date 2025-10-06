@@ -662,35 +662,47 @@ impl OpenCodeMonitorApplet {
                 };
 
                 let today_button = if self.state.display_mode == DisplayMode::Today {
-                    button::suggested(today_label).width(Length::Fill)
+                    button::suggested(today_label)
+                        .width(Length::Fill)
+                        .height(Length::Shrink)
                 } else {
                     button::standard(today_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::Today))
                         .width(Length::Fill)
+                        .height(Length::Shrink)
                 };
 
                 let month_button = if self.state.display_mode == DisplayMode::Month {
-                    button::suggested(month_label).width(Length::Fill)
+                    button::suggested(month_label)
+                        .width(Length::Fill)
+                        .height(Length::Shrink)
                 } else {
                     button::standard(month_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::Month))
                         .width(Length::Fill)
+                        .height(Length::Shrink)
                 };
 
                 let last_month_button = if self.state.display_mode == DisplayMode::LastMonth {
-                    button::suggested(last_month_label).width(Length::Fill)
+                    button::suggested(last_month_label)
+                        .width(Length::Fill)
+                        .height(Length::Shrink)
                 } else {
                     button::standard(last_month_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::LastMonth))
                         .width(Length::Fill)
+                        .height(Length::Shrink)
                 };
 
                 let alltime_button = if self.state.display_mode == DisplayMode::AllTime {
-                    button::suggested(alltime_label).width(Length::Fill)
+                    button::suggested(alltime_label)
+                        .width(Length::Fill)
+                        .height(Length::Shrink)
                 } else {
                     button::standard(alltime_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::AllTime))
                         .width(Length::Fill)
+                        .height(Length::Shrink)
                 };
 
                 // Create tab rows - first row with Today, Month, Last Month
