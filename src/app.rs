@@ -503,12 +503,12 @@ impl OpenCodeMonitorApplet {
                             .get_popup_settings(main_id, new_id, None, None, None);
 
                         // Set size limits to allow popup to adapt to content
-                        // Min width ensures "All Time" button fits on one line
+                        // Min width reduced since "All Time" is on its own row
                         // Max dimensions prevent the popup from growing too large
                         popup_settings.positioner.size_limits = Limits::NONE
-                            .min_width(400.0)
+                            .min_width(320.0)
                             .min_height(300.0)
-                            .max_width(600.0)
+                            .max_width(500.0)
                             .max_height(600.0);
 
                         eprintln!("DEBUG: Created popup settings, calling get_popup");
@@ -687,18 +687,22 @@ impl OpenCodeMonitorApplet {
                         .on_press(Message::SelectDisplayMode(DisplayMode::AllTime))
                 };
 
-                // Create tab row
-                let tabs = row()
+                // Create tab rows - first row with Today, Month, Last Month
+                // Second row with All Time button
+                let first_row_tabs = row()
                     .push(today_button)
                     .push(month_button)
                     .push(last_month_button)
-                    .push(alltime_button)
                     .spacing(8);
+
+                let second_row_tabs = row().push(alltime_button).spacing(8);
 
                 column()
                     .push(text(title).size(20))
                     .push(text("").size(4))
-                    .push(tabs)
+                    .push(first_row_tabs)
+                    .push(text("").size(4))
+                    .push(second_row_tabs)
                     .push(text("").size(8))
                     .push(
                         row()
