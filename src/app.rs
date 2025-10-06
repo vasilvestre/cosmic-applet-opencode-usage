@@ -660,27 +660,27 @@ impl OpenCodeMonitorApplet {
                 };
 
                 let today_button = if self.state.display_mode == DisplayMode::Today {
-                    button::suggested(today_label).width(Length::Fill)
+                    button::suggested(today_label).width(Length::FillPortion(1))
                 } else {
                     button::standard(today_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::Today))
-                        .width(Length::Fill)
+                        .width(Length::FillPortion(1))
                 };
 
                 let month_button = if self.state.display_mode == DisplayMode::Month {
-                    button::suggested(month_label).width(Length::Fill)
+                    button::suggested(month_label).width(Length::FillPortion(1))
                 } else {
                     button::standard(month_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::Month))
-                        .width(Length::Fill)
+                        .width(Length::FillPortion(1))
                 };
 
                 let last_month_button = if self.state.display_mode == DisplayMode::LastMonth {
-                    button::suggested(last_month_label).width(Length::Fill)
+                    button::suggested(last_month_label).width(Length::FillPortion(1))
                 } else {
                     button::standard(last_month_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::LastMonth))
-                        .width(Length::Fill)
+                        .width(Length::FillPortion(1))
                 };
 
                 let alltime_button = if self.state.display_mode == DisplayMode::AllTime {
