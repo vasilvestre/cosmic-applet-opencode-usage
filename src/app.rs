@@ -59,6 +59,8 @@ pub struct OpenCodeMonitorApplet {
     popup: Option<cosmic::iced::window::Id>,
     /// Watch channel sender for refresh interval updates
     refresh_interval_tx: watch::Sender<u32>,
+    /// Request generation counter for tracking fetch requests
+    fetch_generation: u64,
 }
 
 impl OpenCodeMonitorApplet {
@@ -109,6 +111,7 @@ impl OpenCodeMonitorApplet {
             config_warning: None,
             popup: None,
             refresh_interval_tx,
+            fetch_generation: 0,
         })
     }
 
@@ -123,7 +126,12 @@ impl OpenCodeMonitorApplet {
                     self.state.display_mode
                 );
 
-                // Set loading state
+                // Increment generation counter to track this fetch request
+                self.fetch_generation += 1;
+                let current_generation = self.fetch_generation;
+                eprintln!("[FetchMetrics] Generation: {current_generation}");
+
+                // Set loading state - preserves previous data if available
                 self.state.set_loading();
 
                 // Clone the storage path for async task
@@ -143,111 +151,143 @@ impl OpenCodeMonitorApplet {
                         };
 
                         // Fetch main metrics based on display mode
-                        let metrics = match display_mode {
+                        // Use spawn_blocking for AllTime mode to prevent UI freezing during cache building
+                        let (main_metrics, today_metrics, month_metrics) = match display_mode {
                             DisplayMode::Today => {
                                 eprintln!("[Async] Fetching today's usage");
-                                reader.get_usage_today()
+                                let metrics = reader.get_usage_today().map_err(|e| {
+                                    eprintln!("[Async] Error reading metrics: {e}");
+                                    format!("Failed to read OpenCode usage: {e}")
+                                })?;
+
+                                // No additional fetches needed for Today mode
+                                let month_metrics = {
+                                    eprintln!("[Async] Fetching this month's usage for cache");
+                                    reader.get_usage_month().ok()
+                                };
+
+                                (metrics, None, month_metrics)
                             }
                             DisplayMode::Month => {
                                 eprintln!("[Async] Fetching this month's usage");
-                                reader.get_usage_month()
+                                let metrics = reader.get_usage_month().map_err(|e| {
+                                    eprintln!("[Async] Error reading metrics: {e}");
+                                    format!("Failed to read OpenCode usage: {e}")
+                                })?;
+
+                                // Fetch today's data for panel if needed
+                                let today_metrics = if panel_metrics.is_empty() {
+                                    None
+                                } else {
+                                    eprintln!("[Async] Fetching today's usage for panel");
+                                    reader.get_usage_today().ok()
+                                };
+
+                                (metrics, today_metrics, None)
                             }
                             DisplayMode::AllTime => {
-                                eprintln!("[Async] Fetching all-time usage");
-                                reader.get_usage()
+                                eprintln!("[Async] Fetching all-time usage (using spawn_blocking)");
+                                // Move the reader into the blocking task to avoid blocking the async runtime
+                                let metrics =
+                                    tokio::task::spawn_blocking(move || reader.get_usage())
+                                        .await
+                                        .map_err(|e| format!("Blocking task join error: {e}"))?
+                                        .map_err(|e| {
+                                            eprintln!("[Async] Error reading metrics: {e}");
+                                            format!("Failed to read OpenCode usage: {e}")
+                                        })?;
+
+                                // For AllTime, we don't need additional metrics since we have everything
+                                (metrics, None, None)
                             }
-                        };
-
-                        let main_metrics = metrics.map_err(|e| {
-                            eprintln!("[Async] Error reading metrics: {e}");
-                            format!("Failed to read OpenCode usage: {e}")
-                        })?;
-
-                        // If panel_metrics is not empty, also fetch today's data
-                        let today_metrics = if panel_metrics.is_empty() {
-                            None
-                        } else {
-                            eprintln!("[Async] Fetching today's usage for panel");
-                            reader.get_usage_today().ok()
-                        };
-
-                        // Always fetch month data for caching (independent of display mode)
-                        let month_metrics = if display_mode == DisplayMode::Month {
-                            // In Month mode, main_metrics already contains month data
-                            None
-                        } else {
-                            eprintln!("[Async] Fetching this month's usage for cache");
-                            reader.get_usage_month().ok()
                         };
 
                         Ok((main_metrics, today_metrics, month_metrics))
                     },
-                    |result| cosmic::Action::App(Message::MetricsFetched(Box::new(result))),
+                    move |result| {
+                        cosmic::Action::App(Message::MetricsFetched(
+                            current_generation,
+                            Box::new(result),
+                        ))
+                    },
                 )
             }
-            Message::MetricsFetched(boxed_result) => match *boxed_result {
-                Ok((usage, today_opt, month_opt)) => {
-                    eprintln!("[MetricsFetched] Received successful metrics data");
+            Message::MetricsFetched(generation, boxed_result) => {
+                // Ignore outdated responses from previous fetch requests
+                if generation < self.fetch_generation {
+                    eprintln!(
+                        "[MetricsFetched] Ignoring outdated response (gen: {generation}, current: {})",
+                        self.fetch_generation
+                    );
+                    return Task::none();
+                }
 
-                    // Automatically save daily snapshot to database
-                    // This runs once per day and uses INSERT OR REPLACE to prevent duplicates.
-                    // Errors are logged but don't prevent the UI from updating.
-                    if let Some(ref collector) = self.data_collector {
-                        match collector.collect_and_save(&usage) {
-                            Ok(true) => {
-                                eprintln!("[MetricsFetched] Snapshot saved successfully");
+                eprintln!("[MetricsFetched] Processing response (gen: {generation})");
+
+                match *boxed_result {
+                    Ok((usage, today_opt, month_opt)) => {
+                        eprintln!("[MetricsFetched] Received successful metrics data");
+
+                        // Automatically save daily snapshot to database
+                        // This runs once per day and uses INSERT OR REPLACE to prevent duplicates.
+                        // Errors are logged but don't prevent the UI from updating.
+                        if let Some(ref collector) = self.data_collector {
+                            match collector.collect_and_save(&usage) {
+                                Ok(true) => {
+                                    eprintln!("[MetricsFetched] Snapshot saved successfully");
+                                }
+                                Ok(false) => {
+                                    eprintln!("[MetricsFetched] Snapshot already saved today");
+                                }
+                                Err(e) => {
+                                    eprintln!("[MetricsFetched] Failed to save snapshot: {e}");
+                                    // Continue despite error - don't crash the applet
+                                }
                             }
-                            Ok(false) => {
-                                eprintln!("[MetricsFetched] Snapshot already saved today");
-                            }
-                            Err(e) => {
-                                eprintln!("[MetricsFetched] Failed to save snapshot: {e}");
-                                // Continue despite error - don't crash the applet
-                            }
+                        } else {
+                            eprintln!(
+                                "[MetricsFetched] Data collector not available, skipping snapshot"
+                            );
                         }
-                    } else {
-                        eprintln!(
-                            "[MetricsFetched] Data collector not available, skipping snapshot"
-                        );
+
+                        // If we're in Month mode, the main usage is the month data - cache it
+                        if self.state.display_mode == DisplayMode::Month {
+                            eprintln!(
+                                "[MetricsFetched] Caching month usage from main metrics: ${:.2}",
+                                usage.total_cost
+                            );
+                            self.state.update_month_usage(usage.clone());
+                        }
+
+                        self.state.update_success(usage);
+
+                        // Update today's usage if provided
+                        if let Some(today) = today_opt {
+                            eprintln!(
+                                "[MetricsFetched] Updating today's usage for panel: ${:.2}",
+                                today.total_cost
+                            );
+                            self.state.update_today_usage(today);
+                        }
+
+                        // Update month's usage if provided (when not in Month mode)
+                        if let Some(month) = month_opt {
+                            eprintln!(
+                                "[MetricsFetched] Updating month's usage cache: ${:.2}",
+                                month.total_cost
+                            );
+                            self.state.update_month_usage(month);
+                        }
+
+                        Task::none()
                     }
-
-                    // If we're in Month mode, the main usage is the month data - cache it
-                    if self.state.display_mode == DisplayMode::Month {
-                        eprintln!(
-                            "[MetricsFetched] Caching month usage from main metrics: ${:.2}",
-                            usage.total_cost
-                        );
-                        self.state.update_month_usage(usage.clone());
+                    Err(error) => {
+                        eprintln!("[MetricsFetched] Received error: {error}");
+                        self.state.update_error(error);
+                        Task::none()
                     }
-
-                    self.state.update_success(usage);
-
-                    // Update today's usage if provided
-                    if let Some(today) = today_opt {
-                        eprintln!(
-                            "[MetricsFetched] Updating today's usage for panel: ${:.2}",
-                            today.total_cost
-                        );
-                        self.state.update_today_usage(today);
-                    }
-
-                    // Update month's usage if provided (when not in Month mode)
-                    if let Some(month) = month_opt {
-                        eprintln!(
-                            "[MetricsFetched] Updating month's usage cache: ${:.2}",
-                            month.total_cost
-                        );
-                        self.state.update_month_usage(month);
-                    }
-
-                    Task::none()
                 }
-                Err(error) => {
-                    eprintln!("[MetricsFetched] Received error: {error}");
-                    self.state.update_error(error);
-                    Task::none()
-                }
-            },
+            }
             Message::ThemeChanged | Message::UpdateTooltip | Message::None => Task::none(),
             Message::ConfigChanged(new_config) => {
                 eprintln!("[ConfigChanged] Received config update from COSMIC watch_config");
@@ -515,9 +555,6 @@ impl OpenCodeMonitorApplet {
             PanelState::Success(usage)
             | PanelState::Stale(usage)
             | PanelState::LoadingWithData(usage) => {
-                // Determine if we're loading
-                let is_loading = matches!(self.state.panel_state, PanelState::LoadingWithData(_));
-
                 // Determine title based on current mode
                 let title = match self.state.display_mode {
                     DisplayMode::Today => "Today's Usage",
@@ -525,31 +562,47 @@ impl OpenCodeMonitorApplet {
                     DisplayMode::AllTime => "All-Time Usage",
                 };
 
-                // Create three tab buttons
-                let today_button = if self.state.display_mode == DisplayMode::Today {
-                    button::suggested("Today")
-                } else if is_loading {
-                    button::standard("Today")
+                // Create three tab buttons - always enabled to allow canceling long operations
+                // Show loading indicator on the active button when data is being fetched
+                let is_loading = self.state.panel_state.is_loading();
+
+                let today_label = if self.state.display_mode == DisplayMode::Today && is_loading {
+                    "Today..."
                 } else {
-                    button::standard("Today")
+                    "Today"
+                };
+
+                let month_label = if self.state.display_mode == DisplayMode::Month && is_loading {
+                    "Month..."
+                } else {
+                    "Month"
+                };
+
+                let alltime_label = if self.state.display_mode == DisplayMode::AllTime && is_loading
+                {
+                    "All Time..."
+                } else {
+                    "All Time"
+                };
+
+                let today_button = if self.state.display_mode == DisplayMode::Today {
+                    button::suggested(today_label)
+                } else {
+                    button::standard(today_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::Today))
                 };
 
                 let month_button = if self.state.display_mode == DisplayMode::Month {
-                    button::suggested("Month")
-                } else if is_loading {
-                    button::standard("Month")
+                    button::suggested(month_label)
                 } else {
-                    button::standard("Month")
+                    button::standard(month_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::Month))
                 };
 
                 let alltime_button = if self.state.display_mode == DisplayMode::AllTime {
-                    button::suggested("All Time")
-                } else if is_loading {
-                    button::standard("All Time")
+                    button::suggested(alltime_label)
                 } else {
-                    button::standard("All Time")
+                    button::standard(alltime_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::AllTime))
                 };
 
@@ -797,6 +850,7 @@ impl Application for OpenCodeMonitorApplet {
             config_warning: None,
             popup: None,
             refresh_interval_tx,
+            fetch_generation: 0,
         };
 
         eprintln!("[init] Application initialized, triggering initial FetchMetrics");
@@ -959,11 +1013,10 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             let usage = create_mock_usage_metrics();
 
-            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
-                usage.clone(),
-                None,
-                None,
-            )))));
+            let _ = applet.handle_message(Message::MetricsFetched(
+                1,
+                Box::new(Ok((usage.clone(), None, None))),
+            ));
 
             assert!(matches!(applet.state.panel_state, PanelState::Success(_)));
             assert!(applet.state.last_update.is_some());
@@ -976,7 +1029,7 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             let error = "Test error".to_string();
 
-            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Err(error))));
+            let _ = applet.handle_message(Message::MetricsFetched(1, Box::new(Err(error))));
 
             assert!(matches!(applet.state.panel_state, PanelState::Error(_)));
         }
@@ -1156,11 +1209,10 @@ mod tests {
             // Simulate successful fetch with month data
             let main_usage = create_mock_usage_metrics();
             let month_usage = create_mock_usage_metrics();
-            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
-                main_usage,
-                None,
-                Some(month_usage.clone()),
-            )))));
+            let _ = applet.handle_message(Message::MetricsFetched(
+                1,
+                Box::new(Ok((main_usage, None, Some(month_usage.clone())))),
+            ));
 
             // Month cache should be updated
             assert!(applet.state.month_usage.is_some());
@@ -1178,11 +1230,10 @@ mod tests {
 
             // Simulate successful month data fetch
             let month_usage = create_mock_usage_metrics();
-            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
-                month_usage.clone(),
-                None,
-                None,
-            )))));
+            let _ = applet.handle_message(Message::MetricsFetched(
+                1,
+                Box::new(Ok((month_usage.clone(), None, None))),
+            ));
 
             // Month cache should be populated when in Month mode
             assert!(applet.state.month_usage.is_some());
@@ -1199,11 +1250,10 @@ mod tests {
             let mut month_usage = create_mock_usage_metrics();
             month_usage.total_cost = 5.0; // Different value to distinguish
 
-            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
-                all_time_usage,
-                None,
-                Some(month_usage.clone()),
-            )))));
+            let _ = applet.handle_message(Message::MetricsFetched(
+                1,
+                Box::new(Ok((all_time_usage, None, Some(month_usage.clone())))),
+            ));
             assert!(applet.state.month_usage.is_some());
 
             // Switch to Today mode
@@ -1231,22 +1281,24 @@ mod tests {
             let mut initial_month = create_mock_usage_metrics();
             initial_month.total_cost = 5.0;
 
-            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
-                all_time_usage.clone(),
-                None,
-                Some(initial_month.clone()),
-            )))));
+            let _ = applet.handle_message(Message::MetricsFetched(
+                1,
+                Box::new(Ok((
+                    all_time_usage.clone(),
+                    None,
+                    Some(initial_month.clone()),
+                ))),
+            ));
             assert_eq!(applet.state.month_usage.as_ref().unwrap().total_cost, 5.0);
 
             // Second fetch with updated month data
             let mut updated_month = create_mock_usage_metrics();
             updated_month.total_cost = 10.0;
 
-            let _ = applet.handle_message(Message::MetricsFetched(Box::new(Ok((
-                all_time_usage,
-                None,
-                Some(updated_month),
-            )))));
+            let _ = applet.handle_message(Message::MetricsFetched(
+                1,
+                Box::new(Ok((all_time_usage, None, Some(updated_month)))),
+            ));
 
             // Month cache should be updated
             assert_eq!(applet.state.month_usage.as_ref().unwrap().total_cost, 10.0);
@@ -1259,8 +1311,10 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Simulate successful initial fetch
             let usage = create_mock_usage_metrics();
-            let _ =
-                applet.handle_message(Message::MetricsFetched(Box::new(Ok((usage, None, None)))));
+            let _ = applet.handle_message(Message::MetricsFetched(
+                1,
+                Box::new(Ok((usage, None, None))),
+            ));
 
             // Manually set last_update to old time to trigger refresh
             applet.state.last_update = Some(Utc::now() - chrono::Duration::seconds(1000));
@@ -1282,8 +1336,10 @@ mod tests {
         if let Ok(mut applet) = OpenCodeMonitorApplet::new(config) {
             // Simulate recent successful fetch
             let usage = create_mock_usage_metrics();
-            let _ =
-                applet.handle_message(Message::MetricsFetched(Box::new(Ok((usage, None, None)))));
+            let _ = applet.handle_message(Message::MetricsFetched(
+                1,
+                Box::new(Ok((usage, None, None))),
+            ));
 
             // last_update should be recent (just set by update_success)
             assert!(!applet.state.needs_refresh());
