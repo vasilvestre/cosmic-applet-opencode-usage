@@ -567,20 +567,20 @@ impl OpenCodeMonitorApplet {
                 let is_loading = self.state.panel_state.is_loading();
 
                 let today_label = if self.state.display_mode == DisplayMode::Today && is_loading {
-                    "Today..."
+                    "..."
                 } else {
                     "Today"
                 };
 
                 let month_label = if self.state.display_mode == DisplayMode::Month && is_loading {
-                    "Month..."
+                    "..."
                 } else {
                     "Month"
                 };
 
                 let alltime_label = if self.state.display_mode == DisplayMode::AllTime && is_loading
                 {
-                    "All Time..."
+                    "..."
                 } else {
                     "All Time"
                 };
