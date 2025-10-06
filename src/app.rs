@@ -16,7 +16,7 @@ use cosmic::{
     iced::{
         futures::SinkExt,
         platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup},
-        window, Alignment, Limits, Subscription,
+        window, Alignment, Length, Limits, Subscription,
     },
     iced_futures::stream,
     widget::{autosize, button, checkbox, column, icon, row, scrollable, text, text_input, Id},
@@ -681,10 +681,11 @@ impl OpenCodeMonitorApplet {
                 };
 
                 let alltime_button = if self.state.display_mode == DisplayMode::AllTime {
-                    button::suggested(alltime_label)
+                    button::suggested(alltime_label).width(Length::Fill)
                 } else {
                     button::standard(alltime_label)
                         .on_press(Message::SelectDisplayMode(DisplayMode::AllTime))
+                        .width(Length::Fill)
                 };
 
                 // Create tab rows - first row with Today, Month, Last Month
