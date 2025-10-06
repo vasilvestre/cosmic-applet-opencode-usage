@@ -181,7 +181,7 @@ impl OpenCodeMonitorApplet {
                                     reader.get_usage_month().ok()
                                 };
 
-                                (metrics, None, month_metrics)
+                                (metrics.clone(), Some(metrics), month_metrics)
                             }
                             DisplayMode::Month => {
                                 eprintln!("[Async] Fetching this month's usage");
@@ -1664,6 +1664,81 @@ mod tests {
             assert_eq!(
                 applet.state.config.use_raw_token_display, new_config.use_raw_token_display,
                 "ConfigChanged should update use_raw_token_display"
+            );
+        }
+    }
+
+    #[test]
+    fn test_config_changed_preserves_today_usage_when_panel_metrics_unchanged() {
+        // This test verifies that when ConfigChanged is triggered (e.g., by COSMIC's watch_config)
+        // and panel_metrics hasn't actually changed, today_usage cache is preserved.
+        // This is important because we now always load default panel_metrics (all 5 metrics),
+        // so ConfigChanged shouldn't clear the cache unnecessarily.
+
+        if let Ok(mut applet) = OpenCodeMonitorApplet::new(AppConfig::default()) {
+            // Populate today_usage with some data
+            let today_usage = create_mock_usage_metrics();
+            applet.state.update_today_usage(today_usage.clone());
+            assert!(applet.state.today_usage.is_some());
+
+            // Create a new config with the SAME panel_metrics (simulating watch_config reload)
+            let new_config = AppConfig {
+                refresh_interval_seconds: 120, // Different value
+                panel_metrics: applet.state.config.panel_metrics.clone(), // SAME
+                use_raw_token_display: !applet.state.config.use_raw_token_display, // Different
+                ..Default::default()
+            };
+
+            // Send ConfigChanged message
+            let _ = applet.handle_message(Message::ConfigChanged(new_config.clone()));
+
+            // Verify today_usage is preserved when panel_metrics didn't change
+            assert!(
+                applet.state.today_usage.is_some(),
+                "today_usage should be preserved when panel_metrics unchanged"
+            );
+            assert_eq!(
+                applet.state.today_usage.unwrap().total_cost,
+                today_usage.total_cost,
+                "today_usage data should remain unchanged"
+            );
+        }
+    }
+
+    #[test]
+    fn test_today_mode_populates_today_usage_for_panel_display() {
+        // This test verifies that when in Today display mode, today_usage is populated
+        // so that panel stats can be displayed correctly.
+        // Previously, Today mode would set today_metrics to None, causing panel stats
+        // to not display even though panel_metrics was configured.
+
+        if let Ok(mut applet) = OpenCodeMonitorApplet::new(AppConfig::default()) {
+            // Ensure we're in Today mode
+            applet.state.display_mode = DisplayMode::Today;
+
+            // Ensure panel_metrics is not empty (default has all 5 metrics)
+            assert!(!applet.state.config.panel_metrics.is_empty());
+
+            // Simulate successful Today fetch with today data
+            let today_metrics = create_mock_usage_metrics();
+            let _ = applet.handle_message(Message::MetricsFetched(
+                1,
+                Box::new(Ok((
+                    today_metrics.clone(),
+                    Some(today_metrics.clone()),
+                    None,
+                ))),
+            ));
+
+            // Verify today_usage is populated
+            assert!(
+                applet.state.today_usage.is_some(),
+                "today_usage should be populated in Today mode for panel display"
+            );
+            assert_eq!(
+                applet.state.today_usage.as_ref().unwrap().total_cost,
+                today_metrics.total_cost,
+                "today_usage should match the fetched metrics"
             );
         }
     }

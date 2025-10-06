@@ -147,7 +147,9 @@ impl AppConfig {
             refresh_interval_seconds: config
                 .get("refresh_interval_seconds")
                 .unwrap_or(default.refresh_interval_seconds),
-            panel_metrics: config.get("panel_metrics").unwrap_or(default.panel_metrics),
+            // Always use default panel_metrics (all stats enabled)
+            // This ensures all users see all metrics regardless of saved config
+            panel_metrics: default.panel_metrics,
             use_raw_token_display: config
                 .get("use_raw_token_display")
                 .unwrap_or(default.use_raw_token_display),
@@ -174,7 +176,9 @@ impl AppConfig {
             refresh_interval_seconds: config
                 .get("refresh_interval_seconds")
                 .unwrap_or(default.refresh_interval_seconds),
-            panel_metrics: config.get("panel_metrics").unwrap_or(default.panel_metrics),
+            // Always use default panel_metrics (all stats enabled)
+            // This ensures all users see all metrics regardless of saved config
+            panel_metrics: default.panel_metrics,
             use_raw_token_display: config
                 .get("use_raw_token_display")
                 .unwrap_or(default.use_raw_token_display),
@@ -504,8 +508,15 @@ mod tests {
         // Load it back
         let loaded = AppConfig::load_with_id(&app_id).expect("load should succeed");
 
-        // Should match the original
-        assert_eq!(loaded, original);
+        // Should match the original, except panel_metrics which always loads as default
+        assert_eq!(loaded.storage_path, original.storage_path);
+        assert_eq!(
+            loaded.refresh_interval_seconds,
+            original.refresh_interval_seconds
+        );
+        assert_eq!(loaded.panel_metrics, AppConfig::default().panel_metrics);
+        assert_eq!(loaded.use_raw_token_display, original.use_raw_token_display);
+        assert_eq!(loaded.display_mode, original.display_mode);
     }
 
     #[test]
@@ -525,7 +536,8 @@ mod tests {
         // Load and verify
         let loaded1 = AppConfig::load_with_id(&app_id).expect("load should succeed");
         assert_eq!(loaded1.refresh_interval_seconds, 600);
-        assert_eq!(loaded1.panel_metrics, vec![PanelMetric::Cost]);
+        // panel_metrics always loads as default (all 5 metrics), regardless of what was saved
+        assert_eq!(loaded1.panel_metrics, AppConfig::default().panel_metrics);
 
         // Change one field and save again
         let config2 = AppConfig {
@@ -540,7 +552,8 @@ mod tests {
         // Load and verify the change
         let loaded2 = AppConfig::load_with_id(&app_id).expect("load should succeed");
         assert_eq!(loaded2.refresh_interval_seconds, 1800);
-        assert_eq!(loaded2.panel_metrics, vec![PanelMetric::InputTokens]);
+        // panel_metrics always loads as default (all 5 metrics), regardless of what was saved
+        assert_eq!(loaded2.panel_metrics, AppConfig::default().panel_metrics);
         assert!(loaded2.use_raw_token_display);
     }
 
@@ -619,7 +632,8 @@ mod tests {
             .save_with_id(&app_id)
             .expect("save should succeed");
         let loaded = AppConfig::load_with_id(&app_id).expect("load should succeed");
-        assert_eq!(loaded.panel_metrics, vec![PanelMetric::Cost]);
+        // panel_metrics always loads as default (all 5 metrics), regardless of what was saved
+        assert_eq!(loaded.panel_metrics, AppConfig::default().panel_metrics);
 
         // Test multiple metrics
         let config_multiple = AppConfig {
@@ -637,14 +651,8 @@ mod tests {
             .save_with_id(&app_id)
             .expect("save should succeed");
         let loaded = AppConfig::load_with_id(&app_id).expect("load should succeed");
-        assert_eq!(
-            loaded.panel_metrics,
-            vec![
-                PanelMetric::Cost,
-                PanelMetric::Interactions,
-                PanelMetric::ReasoningTokens
-            ]
-        );
+        // panel_metrics always loads as default (all 5 metrics), regardless of what was saved
+        assert_eq!(loaded.panel_metrics, AppConfig::default().panel_metrics);
 
         // Test empty Vec
         let config_empty = AppConfig {
@@ -658,7 +666,8 @@ mod tests {
             .save_with_id(&app_id)
             .expect("save should succeed");
         let loaded = AppConfig::load_with_id(&app_id).expect("load should succeed");
-        assert_eq!(loaded.panel_metrics, Vec::<PanelMetric>::new());
+        // panel_metrics always loads as default (all 5 metrics), regardless of what was saved
+        assert_eq!(loaded.panel_metrics, AppConfig::default().panel_metrics);
 
         // Test all metrics
         let config_all = AppConfig {
