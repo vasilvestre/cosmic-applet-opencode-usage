@@ -979,7 +979,7 @@ impl Application for OpenCodeMonitorApplet {
             let (max_w, max_h) = if self.settings_dialog_open {
                 (600.0, 600.0)
             } else {
-                (600.0, 500.0)
+                (700.0, 500.0)
             };
 
             self.core
